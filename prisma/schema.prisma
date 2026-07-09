@@ -1,0 +1,348 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPERADMIN
+  ADMIN
+  MEDECIN
+  AGENT_CNTS
+  DONNEUR
+}
+
+enum StatutUtilisateur {
+  ACTIF
+  INACTIF
+}
+
+enum GroupeSanguin {
+  A_POSITIF
+  A_NEGATIF
+  B_POSITIF
+  B_NEGATIF
+  AB_POSITIF
+  AB_NEGATIF
+  O_POSITIF
+  O_NEGATIF
+}
+
+enum StatutAlerte {
+  OUVERTE
+  FERMEE
+}
+
+enum StatutReponse {
+  JE_VIENS
+  INDISPONIBLE
+}
+
+enum CategorieConseil {
+  AVANT_DON
+  APRES_DON
+  ELIGIBILITE
+}
+
+enum TypeNotification {
+  SMS
+  EMAIL
+  PUSH
+}
+
+enum StatutNotification {
+  ENVOYEE
+  RECUE
+  LUE
+}
+
+enum TypeRecompense {
+  BADGE
+  CERTIFICAT
+  VIVRES
+  TRANSPORT
+  AUTRE
+}
+
+enum StatutRecompense {
+  ATTRIBUEE
+  UTILISEE
+  EXPIREE
+}
+
+enum TypeAlerteSecurite {
+  BRUTE_FORCE
+  CSP_VIOLATION
+  SQL_INJECTION
+  XSS_ATTEMPT
+}
+
+enum GraviteAlerteSecurite {
+  FAIBLE
+  MOYEN
+  ELEVE
+  CRITIQUE
+}
+
+// ==================== SECURITE (surveillance technique, réservée SUPERADMIN) ====================
+
+model AlerteSecurite {
+  id           String                 @id @default(cuid())
+  type         TypeAlerteSecurite
+  gravite      GraviteAlerteSecurite
+  message      String
+  ipSource     String?
+  uri          String?
+  dateCreation DateTime               @default(now())
+
+  @@index([type])
+  @@index([gravite])
+  @@index([dateCreation])
+  @@map("alertes_securite")
+}
+
+// ==================== ANALYTICS (fréquentation, visiteurs connectés/anonymes) ====================
+
+model SessionVisite {
+  id               String       @id @default(cuid())
+  sessionId        String       @unique
+  utilisateurId    String?
+  utilisateur      Utilisateur? @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
+  premiereActivite DateTime     @default(now())
+  derniereActivite DateTime     @default(now())
+  pagesVues        Int          @default(1)
+
+  @@index([derniereActivite])
+  @@map("sessions_visite")
+}
+
+// ==================== QUARTIER (zones de ciblage, pilote Lomé) ====================
+
+model Quartier {
+  id        String  @id @default(cuid())
+  nom       String  @unique
+  latitude  Float?
+  longitude Float?
+
+  utilisateurs Utilisateur[]
+  alertes      Alerte[]
+  centresDon   CentreDon[]
+
+  @@map("quartiers")
+}
+
+// ==================== CENTRE DE DON (sites de collecte du CNTS) ====================
+
+model CentreDon {
+  id        String  @id @default(cuid())
+  nom       String  @unique
+  adresse   String?
+  latitude  Float?
+  longitude Float?
+
+  quartierId String?
+  quartier   Quartier? @relation(fields: [quartierId], references: [id])
+
+  carnets CarnetDigital[]
+
+  @@map("centres_don")
+}
+
+model Utilisateur {
+  id         String            @id @default(cuid())
+  nom        String
+  prenom     String
+  email      String?           @unique
+  telephone  String?           @unique
+  motDePasse String?
+  role       Role
+  statut     StatutUtilisateur @default(ACTIF)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+ 
+  groupeSanguin    GroupeSanguin?
+  quartierId       String?
+  quartier         Quartier?      @relation(fields: [quartierId], references: [id])
+  latitude         Float?
+  longitude        Float?
+  dateInscription  DateTime?      @default(now())
+
+  
+  reponses            Reponse[]
+  carnets             CarnetDigital[]
+  notificationsRecues Notification[]
+  recompensesRecues   Recompense[]    @relation("RecompensesRecuesParDonneur")
+  badges              DonneurBadge[]
+
+  
+  alertesCreees         Alerte[]     @relation("AlertesCreeesParAgent")
+  recompensesAttribuees Recompense[] @relation("RecompensesAttribueesParAgent")
+
+  
+  conseilsValides ConseilSante[] @relation("ConseilsValidesParMedecin")
+
+  sessionsVisite SessionVisite[]
+
+  @@index([role, statut])
+  @@index([groupeSanguin, quartierId])
+  @@map("utilisateurs")
+}
+
+ 
+
+model Alerte {
+  id                  String        @id @default(cuid())
+  groupeSanguinRequis GroupeSanguin
+  quartierId          String
+  quartier            Quartier      @relation(fields: [quartierId], references: [id])
+  latitude            Float?
+  longitude           Float?
+  rayonKm             Float?        @default(10)
+  dateCreation        DateTime      @default(now())
+  statut              StatutAlerte  @default(OUVERTE)
+
+  creeParId String
+  creePar   Utilisateur @relation("AlertesCreeesParAgent", fields: [creeParId], references: [id])
+
+  reponses      Reponse[]
+  notifications Notification[]
+
+  @@index([statut, groupeSanguinRequis])
+  @@index([creeParId])
+  @@index([quartierId])
+  @@map("alertes")
+}
+
+
+
+model Reponse {
+  id          String        @id @default(cuid())
+  alerteId    String
+  alerte      Alerte        @relation(fields: [alerteId], references: [id], onDelete: Cascade)
+  donneurId   String
+  donneur     Utilisateur   @relation(fields: [donneurId], references: [id], onDelete: Cascade)
+  statut      StatutReponse
+  dateReponse DateTime      @default(now())
+
+  carnet CarnetDigital?
+
+  @@unique([alerteId, donneurId])
+  @@index([donneurId])
+  @@map("reponses")
+}
+
+
+
+model CarnetDigital {
+  id                  String      @id @default(cuid())
+  donneurId           String
+  donneur             Utilisateur @relation(fields: [donneurId], references: [id], onDelete: Cascade)
+  dateDon             DateTime
+  centreDonId         String
+  centreDon           CentreDon   @relation(fields: [centreDonId], references: [id])
+  messageRemerciement String?
+  rappelProchaineDate DateTime?
+
+  reponseId String?  @unique
+  reponse   Reponse? @relation(fields: [reponseId], references: [id])
+
+  recompenseId String?     @unique
+  recompense   Recompense? @relation(fields: [recompenseId], references: [id])
+
+  @@index([donneurId])
+  @@index([centreDonId])
+  @@map("carnets_digitaux")
+}
+
+
+
+model ConseilSante {
+  id              String           @id @default(cuid())
+  titre           String
+  contenu         String
+  categorie       CategorieConseil
+  datePublication DateTime         @default(now())
+
+  valideParId String
+  validePar   Utilisateur @relation("ConseilsValidesParMedecin", fields: [valideParId], references: [id])
+
+  @@index([categorie])
+  @@index([valideParId])
+  @@map("conseils_sante")
+}
+
+
+
+model Badge {
+  id                 String @id @default(cuid())
+  nom                String @unique
+  critereAttribution String
+
+  donneurs DonneurBadge[]
+
+  @@map("badges")
+}
+
+model DonneurBadge {
+  id            String      @id @default(cuid())
+  donneurId     String
+  donneur       Utilisateur @relation(fields: [donneurId], references: [id], onDelete: Cascade)
+  badgeId       String
+  badge         Badge       @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  dateObtention DateTime    @default(now())
+
+  @@unique([donneurId, badgeId])
+  @@index([badgeId])
+  @@map("donneur_badges")
+}
+
+
+
+model Notification {
+  id        String             @id @default(cuid())
+  type      TypeNotification
+  statut    StatutNotification @default(ENVOYEE)
+  contenu   String?
+  dateEnvoi DateTime           @default(now())
+
+  donneurId String
+  donneur   Utilisateur @relation(fields: [donneurId], references: [id], onDelete: Cascade)
+
+  alerteId String?
+  alerte   Alerte? @relation(fields: [alerteId], references: [id], onDelete: SetNull)
+
+  @@index([donneurId, statut])
+  @@index([alerteId])
+  @@map("notifications")
+}
+
+
+
+model Recompense {
+  id                 String           @id @default(cuid())
+  donneurId          String
+  donneur            Utilisateur      @relation("RecompensesRecuesParDonneur", fields: [donneurId], references: [id], onDelete: Cascade)
+  type               TypeRecompense
+  description        String
+  critereAttribution String?
+  dateAttribution    DateTime         @default(now())
+  statut             StatutRecompense @default(ATTRIBUEE)
+
+  attribueParId String?
+  attribuePar   Utilisateur? @relation("RecompensesAttribueesParAgent", fields: [attribueParId], references: [id])
+
+  carnet CarnetDigital?
+
+  @@index([donneurId])
+  @@index([attribueParId])
+  @@map("recompenses")
+}
