@@ -13,6 +13,8 @@ import { ConseilsModule } from './conseils/conseils.module';
 import { CentresDonModule } from './centres-don/centres-don.module';
 import { SecurityModule } from './security/security.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { ContactModule } from './contact/contact.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ThreatDetectionInterceptor } from './common/interceptors/threat-detection.interceptor';
 import { validateEnv } from './config/env.validation';
@@ -24,7 +26,9 @@ import { validateEnv } from './config/env.validation';
       validate: validateEnv,
     }),
     ThrottlerModule.forRoot({
-      throttlers: [{ ttl: 60_000, limit: 30 }],
+      // 30 req/60s était trop strict pour un usage normal : une seule page de dashboard
+      // (stats + listes + heartbeat + refresh) dépasse déjà ce seuil au chargement.
+      throttlers: [{ ttl: 60_000, limit: 120 }],
     }),
     RepositoryModule,
     SecurityModule,
@@ -37,6 +41,8 @@ import { validateEnv } from './config/env.validation';
     ConseilsModule,
     CentresDonModule,
     AnalyticsModule,
+    ContactModule,
+    NotificationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

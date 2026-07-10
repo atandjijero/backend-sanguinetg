@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsNumber, IsString, MinLength, validateSync } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, MinLength, validateSync } from 'class-validator';
 
 enum Environment {
   Development = 'development',
@@ -37,6 +37,42 @@ class EnvironmentVariables {
 
   @IsString()
   FRONTEND_URL: string = 'http://localhost:3000';
+
+  @IsOptional()
+  @IsString()
+  MAIL_HOST?: string;
+
+  @IsOptional()
+  @IsNumber()
+  MAIL_PORT?: number;
+
+  @IsOptional()
+  @IsString()
+  MAIL_SECURE?: string;
+
+  @IsOptional()
+  @IsString()
+  MAIL_USER?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_PASSWORD?: string;
+
+  @IsOptional()
+  @IsString()
+  MAIL_FROM?: string;
+
+  @IsOptional()
+  @IsString()
+  MAIL_FROM_NAME?: string;
+
+  @IsOptional()
+  @IsString()
+  BREVO_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  SMS_SENDER?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

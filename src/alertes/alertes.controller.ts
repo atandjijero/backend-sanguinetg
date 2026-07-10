@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@ne
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.interface';
@@ -9,6 +10,7 @@ import { AlertesService } from './alertes.service';
 import { CreateAlerteDto } from './dto/create-alerte.dto';
 import { CreateReponseDto } from './dto/create-reponse.dto';
 import { FindAlertesQuery } from './dto/find-alertes.query';
+import { ReponseEmailDto } from './dto/reponse-email.dto';
 import { UpdateAlerteStatutDto } from './dto/update-alerte-statut.dto';
 
 @ApiTags('alertes')
@@ -46,6 +48,13 @@ export class AlertesController {
     return this.alertesService.findOne(id, user);
   }
 
+  @Public()
+  @Get('reponse-email/apercu')
+  @ApiOperation({ summary: "Aperçu (lecture seule) de l'alerte visée par un lien de réponse par email" })
+  apercuReponseEmail(@Query('token') token: string) {
+    return this.alertesService.apercuReponseEmail(token);
+  }
+
   @UseGuards(RolesGuard)
   @Roles(Role.AGENT_CNTS, Role.ADMIN)
   @Patch(':id/statut')
@@ -64,6 +73,13 @@ export class AlertesController {
     @CurrentUser('id') donneurId: string,
   ) {
     return this.alertesService.repondre(alerteId, donneurId, dto);
+  }
+
+  @Public()
+  @Post('reponse-email')
+  @ApiOperation({ summary: "Répondre à une alerte depuis le lien cliqué dans l'email (sans connexion)" })
+  repondreParEmail(@Body() dto: ReponseEmailDto) {
+    return this.alertesService.repondreParEmail(dto.token, dto.statut);
   }
 
   @UseGuards(RolesGuard)

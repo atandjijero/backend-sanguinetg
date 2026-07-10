@@ -5,7 +5,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  
 }
 
 datasource db {
@@ -92,16 +91,21 @@ enum GraviteAlerteSecurite {
   CRITIQUE
 }
 
-// ==================== SECURITE (surveillance technique, réservée SUPERADMIN) ====================
+enum StatutMessageContact {
+  NOUVEAU
+  REPONDU
+}
+
+// SECURITE (surveillance technique, réservée SUPERADMIN)
 
 model AlerteSecurite {
-  id           String                 @id @default(cuid())
+  id           String                @id @default(cuid())
   type         TypeAlerteSecurite
   gravite      GraviteAlerteSecurite
   message      String
   ipSource     String?
   uri          String?
-  dateCreation DateTime               @default(now())
+  dateCreation DateTime              @default(now())
 
   @@index([type])
   @@index([gravite])
@@ -109,7 +113,7 @@ model AlerteSecurite {
   @@map("alertes_securite")
 }
 
-// ==================== ANALYTICS (fréquentation, visiteurs connectés/anonymes) ====================
+//ANALYTICS (fréquentation, visiteurs connectés/anonymes)
 
 model SessionVisite {
   id               String       @id @default(cuid())
@@ -124,11 +128,11 @@ model SessionVisite {
   @@map("sessions_visite")
 }
 
-// ==================== QUARTIER (zones de ciblage, pilote Lomé) ====================
+//QUARTIER (zones de ciblage, pilote Lomé)
 
 model Quartier {
-  id        String  @id @default(cuid())
-  nom       String  @unique
+  id        String @id @default(cuid())
+  nom       String @unique
   latitude  Float?
   longitude Float?
 
@@ -139,7 +143,7 @@ model Quartier {
   @@map("quartiers")
 }
 
-// ==================== CENTRE DE DON (sites de collecte du CNTS) ====================
+//CENTRE DE DON (sites de collecte du CNTS)
 
 model CentreDon {
   id        String  @id @default(cuid())
@@ -152,6 +156,7 @@ model CentreDon {
   quartier   Quartier? @relation(fields: [quartierId], references: [id])
 
   carnets CarnetDigital[]
+  alertes Alerte[]
 
   @@map("centres_don")
 }
@@ -168,26 +173,23 @@ model Utilisateur {
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
- 
-  groupeSanguin    GroupeSanguin?
-  quartierId       String?
-  quartier         Quartier?      @relation(fields: [quartierId], references: [id])
-  latitude         Float?
-  longitude        Float?
-  dateInscription  DateTime?      @default(now())
+  groupeSanguin   GroupeSanguin?
+  quartierId      String?
+  quartier        Quartier?      @relation(fields: [quartierId], references: [id])
+  latitude        Float?
+  longitude       Float?
+  dateInscription DateTime?      @default(now())
 
-  
   reponses            Reponse[]
   carnets             CarnetDigital[]
   notificationsRecues Notification[]
   recompensesRecues   Recompense[]    @relation("RecompensesRecuesParDonneur")
   badges              DonneurBadge[]
 
-  
-  alertesCreees         Alerte[]     @relation("AlertesCreeesParAgent")
-  recompensesAttribuees Recompense[] @relation("RecompensesAttribueesParAgent")
+  alertesCreees          Alerte[]         @relation("AlertesCreeesParAgent")
+  recompensesAttribuees  Recompense[]     @relation("RecompensesAttribueesParAgent")
+  messagesContactTraites MessageContact[]
 
-  
   conseilsValides ConseilSante[] @relation("ConseilsValidesParMedecin")
 
   sessionsVisite SessionVisite[]
@@ -197,13 +199,13 @@ model Utilisateur {
   @@map("utilisateurs")
 }
 
- 
-
 model Alerte {
   id                  String        @id @default(cuid())
   groupeSanguinRequis GroupeSanguin
   quartierId          String
   quartier            Quartier      @relation(fields: [quartierId], references: [id])
+  centreDonId         String?
+  centreDon           CentreDon?    @relation(fields: [centreDonId], references: [id])
   latitude            Float?
   longitude           Float?
   rayonKm             Float?        @default(10)
@@ -219,10 +221,9 @@ model Alerte {
   @@index([statut, groupeSanguinRequis])
   @@index([creeParId])
   @@index([quartierId])
+  @@index([centreDonId])
   @@map("alertes")
 }
-
-
 
 model Reponse {
   id          String        @id @default(cuid())
@@ -239,8 +240,6 @@ model Reponse {
   @@index([donneurId])
   @@map("reponses")
 }
-
-
 
 model CarnetDigital {
   id                  String      @id @default(cuid())
@@ -263,8 +262,6 @@ model CarnetDigital {
   @@map("carnets_digitaux")
 }
 
-
-
 model ConseilSante {
   id              String           @id @default(cuid())
   titre           String
@@ -279,8 +276,6 @@ model ConseilSante {
   @@index([valideParId])
   @@map("conseils_sante")
 }
-
-
 
 model Badge {
   id                 String @id @default(cuid())
@@ -305,14 +300,14 @@ model DonneurBadge {
   @@map("donneur_badges")
 }
 
-
-
 model Notification {
-  id        String             @id @default(cuid())
-  type      TypeNotification
-  statut    StatutNotification @default(ENVOYEE)
-  contenu   String?
-  dateEnvoi DateTime           @default(now())
+  id          String             @id @default(cuid())
+  type        TypeNotification
+  statut      StatutNotification @default(ENVOYEE)
+  contenu     String?
+  emailEnvoye Boolean            @default(false)
+  smsEnvoye   Boolean            @default(false)
+  dateEnvoi   DateTime           @default(now())
 
   donneurId String
   donneur   Utilisateur @relation(fields: [donneurId], references: [id], onDelete: Cascade)
@@ -324,8 +319,6 @@ model Notification {
   @@index([alerteId])
   @@map("notifications")
 }
-
-
 
 model Recompense {
   id                 String           @id @default(cuid())
@@ -345,4 +338,24 @@ model Recompense {
   @@index([donneurId])
   @@index([attribueParId])
   @@map("recompenses")
+}
+
+//MESSAGES DE CONTACT (formulaire public du site)
+
+model MessageContact {
+  id           String               @id @default(cuid())
+  nomComplet   String
+  email        String
+  sujet        String
+  message      String
+  statut       StatutMessageContact @default(NOUVEAU)
+  dateCreation DateTime             @default(now())
+
+  reponse     String?
+  dateReponse DateTime?
+  repondParId String?
+  repondPar   Utilisateur? @relation(fields: [repondParId], references: [id])
+
+  @@index([statut])
+  @@map("messages_contact")
 }

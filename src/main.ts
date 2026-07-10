@@ -20,6 +20,8 @@ async function bootstrap() {
           styleSrc: [`'self'`, `'unsafe-inline'`],
           scriptSrc: [`'self'`, `'unsafe-inline'`],
           imgSrc: [`'self'`, 'data:'],
+          // La page Contact embarque une carte Google Maps (iframe officiel maps/embed) pour localiser le CNTS.
+          frameSrc: [`'self'`, 'https://www.google.com'],
           'report-uri': ['/security/csp-report'],
         },
       },

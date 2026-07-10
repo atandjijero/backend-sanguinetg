@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import type { Request } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { DeleteAlertesSecuriteDto } from './dto/delete-alertes-securite.dto';
 import { FindAlertesSecuriteQuery } from './dto/find-alertes-securite.query';
 import { SecurityAlertsService } from './security-alerts.service';
 
@@ -20,6 +21,24 @@ export class SecurityAlertsController {
   @ApiOperation({ summary: 'Liste paginée des alertes de sécurité (technique, réservé SUPERADMIN)' })
   findAll(@Query() query: FindAlertesSecuriteQuery) {
     return this.securityAlertsService.findAll(query);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @Delete('alertes')
+  @ApiOperation({ summary: 'Supprimer plusieurs alertes de sécurité (réservé SUPERADMIN)' })
+  removeMany(@Body() dto: DeleteAlertesSecuriteDto) {
+    return this.securityAlertsService.removeMany(dto.ids);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @Delete('alertes/:id')
+  @ApiOperation({ summary: 'Supprimer une alerte de sécurité (réservé SUPERADMIN)' })
+  remove(@Param('id') id: string) {
+    return this.securityAlertsService.remove(id);
   }
 
   @ApiBearerAuth()

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { GraviteAlerteSecurite, Prisma, TypeAlerteSecurite } from '@prisma/client';
 import { RepositoryService } from '../repository/repository.service';
 import { FindAlertesSecuriteQuery } from './dto/find-alertes-securite.query';
@@ -48,6 +48,23 @@ export class SecurityAlertsService {
     ]);
 
     return { data, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  async remove(id: string) {
+    try {
+      await this.repository.alerteSecurite.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException('Alerte de sécurité introuvable');
+      }
+      throw error;
+    }
+    return { success: true };
+  }
+
+  async removeMany(ids: string[]) {
+    const { count } = await this.repository.alerteSecurite.deleteMany({ where: { id: { in: ids } } });
+    return { supprimees: count };
   }
 
   async stats() {
