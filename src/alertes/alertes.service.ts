@@ -176,6 +176,51 @@ export class AlertesService {
     return alertes.map((alerte) => ({ ...alerte, maReponse: reponseParAlerte.get(alerte.id) ?? null }));
   }
 
+  /**
+   * Indicateurs H1 (mémoire, tableau 1) : délai moyen entre le lancement d'une alerte et les
+   * réponses « Je viens », et taux d'alertes ayant obtenu une première réponse en moins d'une heure.
+   */
+  async statistiquesMobilisation() {
+    const alertes = await this.repository.alerte.findMany({
+      select: {
+        dateCreation: true,
+        reponses: {
+          where: { statut: 'JE_VIENS' },
+          select: { dateReponse: true },
+          orderBy: { dateReponse: 'asc' },
+        },
+      },
+    });
+
+    const UNE_HEURE_MS = 60 * 60 * 1000;
+    let sommeDelaisMs = 0;
+    let nombreReponses = 0;
+    let alertesCouvertesUneHeure = 0;
+
+    for (const alerte of alertes) {
+      const premiereReponse = alerte.reponses[0];
+      if (premiereReponse) {
+        const delaiPremiereReponseMs = premiereReponse.dateReponse.getTime() - alerte.dateCreation.getTime();
+        if (delaiPremiereReponseMs <= UNE_HEURE_MS) {
+          alertesCouvertesUneHeure += 1;
+        }
+      }
+      for (const reponse of alerte.reponses) {
+        sommeDelaisMs += reponse.dateReponse.getTime() - alerte.dateCreation.getTime();
+        nombreReponses += 1;
+      }
+    }
+
+    const nombreAlertes = alertes.length;
+    return {
+      nombreAlertes,
+      nombreReponses,
+      delaiMoyenMinutes: nombreReponses > 0 ? Math.round(sommeDelaisMs / nombreReponses / 60000) : null,
+      tauxCouvertureUneHeure: nombreAlertes > 0 ? Math.round((alertesCouvertesUneHeure / nombreAlertes) * 100) : null,
+      donneursMobilisesParAlerte: nombreAlertes > 0 ? Math.round((nombreReponses / nombreAlertes) * 10) / 10 : null,
+    };
+  }
+
   async findOne(id: string, user: AuthenticatedUser) {
     const alerte = await this.repository.alerte.findUnique({ where: { id }, include: ALERTE_INCLUDE });
     if (!alerte) {

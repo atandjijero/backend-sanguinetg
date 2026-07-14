@@ -42,6 +42,16 @@ export class AlertesController {
     return this.alertesService.findAll(query, user);
   }
 
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.AGENT_CNTS, Role.MEDECIN)
+  @Get('statistiques/mobilisation')
+  @ApiOperation({
+    summary: 'Indicateurs de mobilisation (H1) : délai moyen de réponse et taux de couverture en moins d\'une heure',
+  })
+  statistiquesMobilisation() {
+    return this.alertesService.statistiquesMobilisation();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: "Détail d'une alerte" })
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {

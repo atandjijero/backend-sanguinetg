@@ -7,7 +7,10 @@ export class NotificationsService {
 
   findAllPourDonneur(donneurId: string) {
     return this.repository.notification.findMany({
-      where: { donneurId },
+      where: {
+        donneurId,
+        OR: [{ alerteId: null }, { alerte: { reponses: { none: { donneurId } } } }],
+      },
       include: { alerte: { include: { quartier: true, centreDon: true } } },
       orderBy: { dateEnvoi: 'desc' },
       take: 50,
