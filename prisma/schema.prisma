@@ -96,6 +96,13 @@ enum StatutMessageContact {
   REPONDU
 }
 
+enum CleImage {
+  HERO
+  INSTITUTIONAL_DOCTOR
+  INSTITUTIONAL_VIALS
+  ABOUT_LABORATORY
+}
+
 // SECURITE (surveillance technique, réservée SUPERADMIN)
 
 model AlerteSecurite {
@@ -105,6 +112,8 @@ model AlerteSecurite {
   message      String
   ipSource     String?
   uri          String?
+  userAgent    String?
+  payload      Json?
   dateCreation DateTime              @default(now())
 
   @@index([type])
@@ -358,4 +367,16 @@ model MessageContact {
 
   @@index([statut])
   @@map("messages_contact")
+}
+
+//IMAGES DE LA PAGE D'ACCUEIL (gérées depuis l'espace CNTS, stockées sur Cloudinary)
+
+model ImageAccueil {
+  id            String   @id @default(cuid())
+  cle           CleImage @unique
+  url           String
+  cloudinaryId  String
+  dateMiseAJour DateTime @updatedAt
+
+  @@map("images_accueil")
 }

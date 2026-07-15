@@ -14,7 +14,11 @@ export class BruteForceDetectionService {
 
   constructor(private readonly securityAlerts: SecurityAlertsService) {}
 
-  async signalerEchec(ip: string, uri: string) {
+  async signalerEchec(
+    ip: string,
+    uri: string,
+    contexte?: { identifiant?: string; userAgent?: string | null },
+  ) {
     const maintenant = Date.now();
     const entree = this.tentatives.get(ip);
 
@@ -32,6 +36,8 @@ export class BruteForceDetectionService {
         message: `Activité suspecte : ${SEUIL_TENTATIVES} tentatives de connexion échouées en moins de 5 minutes depuis la même adresse IP.`,
         ipSource: ip,
         uri,
+        userAgent: contexte?.userAgent ?? null,
+        payload: contexte?.identifiant ? { identifiant: contexte.identifiant } : undefined,
       });
     }
   }

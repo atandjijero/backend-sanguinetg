@@ -11,6 +11,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
+  // Sans ça, derrière un proxy/hébergeur (Render, Railway, nginx...), req.ip renvoie
+  // l'IP du proxy (ou rien) au lieu de l'IP réelle du client — d'où les ipSource vides
+  // dans les alertes de sécurité.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
   app.use(
     helmet({
       // Swagger UI a besoin de styles/scripts inline pour s'afficher correctement.

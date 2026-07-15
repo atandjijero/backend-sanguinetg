@@ -62,6 +62,8 @@ export class SecurityAlertsController {
         message: `Violation de CSP bloquée : la directive '${rapport.directive}' a été violée en tentant de charger : '${rapport.blockedUri}'.`,
         ipSource: req.ip ?? null,
         uri: rapport.documentUri,
+        userAgent: req.headers['user-agent'] ?? null,
+        payload: (body as object) ?? undefined,
       });
     }
     return { received: true };

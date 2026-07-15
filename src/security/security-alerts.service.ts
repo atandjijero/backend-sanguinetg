@@ -9,6 +9,8 @@ interface CreationAlerteSecurite {
   message: string;
   ipSource?: string | null;
   uri?: string | null;
+  userAgent?: string | null;
+  payload?: Prisma.InputJsonValue | typeof Prisma.JsonNull;
 }
 
 @Injectable()

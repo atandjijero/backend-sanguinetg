@@ -78,13 +78,18 @@ export class AuthService {
     return { user, tokens };
   }
 
-  async login(identifiant: string, motDePasse: string, ip?: string): Promise<{ user: PublicUser; tokens: TokenPair }> {
+  async login(
+    identifiant: string,
+    motDePasse: string,
+    ip?: string,
+    userAgent?: string | null,
+  ): Promise<{ user: PublicUser; tokens: TokenPair }> {
     const utilisateur = await this.repository.utilisateur.findFirst({
       where: { OR: [{ email: identifiant }, { telephone: identifiant }] },
     });
 
     if (!utilisateur || !utilisateur.motDePasse) {
-      if (ip) await this.bruteForceDetection.signalerEchec(ip, '/auth/login');
+      if (ip) await this.bruteForceDetection.signalerEchec(ip, '/auth/login', { identifiant, userAgent });
       throw new UnauthorizedException('Identifiants invalides');
     }
 
@@ -94,7 +99,7 @@ export class AuthService {
 
     const motDePasseValide = await bcrypt.compare(motDePasse, utilisateur.motDePasse);
     if (!motDePasseValide) {
-      if (ip) await this.bruteForceDetection.signalerEchec(ip, '/auth/login');
+      if (ip) await this.bruteForceDetection.signalerEchec(ip, '/auth/login', { identifiant, userAgent });
       throw new UnauthorizedException('Identifiants invalides');
     }
 

@@ -39,6 +39,8 @@ export class ThreatDetectionInterceptor implements NestInterceptor {
             : `Tentative XSS détectée et bloquée dans la requête : "${resultat.extrait}"`,
         ipSource: request.ip ?? null,
         uri: request.originalUrl,
+        userAgent: request.headers['user-agent'] ?? null,
+        payload: request.body ?? undefined,
       });
 
       throw new BadRequestException('Requête rejetée : contenu suspect détecté.');

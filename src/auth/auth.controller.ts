@@ -55,7 +55,7 @@ export class AuthController {
   @Post('login')
   @ApiOperation({ summary: 'Connexion par email/téléphone + mot de passe' })
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const { user, tokens } = await this.authService.login(dto.identifiant, dto.motDePasse, req.ip);
+    const { user, tokens } = await this.authService.login(dto.identifiant, dto.motDePasse, req.ip, req.headers['user-agent']);
     res.cookie(REFRESH_COOKIE_NAME, tokens.refreshToken, this.refreshCookieOptions());
     return { user, accessToken: tokens.accessToken };
   }

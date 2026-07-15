@@ -15,6 +15,7 @@ import { SecurityModule } from './security/security.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { ContactModule } from './contact/contact.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ImagesModule } from './images/images.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ThreatDetectionInterceptor } from './common/interceptors/threat-detection.interceptor';
 import { validateEnv } from './config/env.validation';
@@ -43,6 +44,7 @@ import { validateEnv } from './config/env.validation';
     AnalyticsModule,
     ContactModule,
     NotificationsModule,
+    ImagesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
