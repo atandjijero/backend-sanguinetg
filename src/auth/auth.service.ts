@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
@@ -10,10 +11,17 @@ import * as bcrypt from 'bcrypt';
 import { RepositoryService } from '../repository/repository.service';
 import { durationToSeconds } from '../common/utils/duration.util';
 import { BruteForceDetectionService } from '../security/brute-force-detection.service';
+import { MailService } from '../common/mail/mail.service';
 import { RegisterDto } from './dto/register.dto';
+import { genererEmailReinitialisation } from './reset-password-email.template';
 import type { JwtPayload } from './types/authenticated-user.interface';
 
 const SALT_ROUNDS = 12;
+
+interface TokenReinitialisation {
+  type: 'reset_password';
+  sub: string;
+}
 
 const PUBLIC_USER_SELECT = {
   id: true,
@@ -42,6 +50,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly bruteForceDetection: BruteForceDetectionService,
+    private readonly mailService: MailService,
   ) {}
 
   async register(dto: RegisterDto): Promise<{ user: PublicUser; tokens: TokenPair }> {
@@ -121,6 +130,63 @@ export class AuthService {
     }
 
     return this.issueTokens({ sub: utilisateur.id, role: utilisateur.role, email: utilisateur.email });
+  }
+
+  /**
+   * Envoie un email de réinitialisation si un compte correspond à l'identifiant fourni.
+   * Réponse toujours identique en cas de succès ou d'échec silencieux, pour ne pas révéler
+   * si un email/téléphone est associé à un compte existant.
+   */
+  async demanderReinitialisation(identifiant: string): Promise<{ message: string }> {
+    const message = 'Si un compte existe, un email de réinitialisation a été envoyé.';
+
+    const utilisateur = await this.repository.utilisateur.findFirst({
+      where: { OR: [{ email: identifiant }, { telephone: identifiant }] },
+    });
+
+    if (!utilisateur || !utilisateur.email) {
+      return { message };
+    }
+
+    const token = this.jwtService.sign(
+      { type: 'reset_password', sub: utilisateur.id } satisfies TokenReinitialisation,
+      { secret: this.configService.get<string>('JWT_ACCESS_SECRET'), expiresIn: '1h' },
+    );
+
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const lienReinitialisation = `${frontendUrl}/reinitialiser-mot-de-passe?token=${token}`;
+
+    await this.mailService.envoyer({
+      to: utilisateur.email,
+      subject: 'Réinitialisation de votre mot de passe Sanguine TG',
+      text: `Bonjour ${utilisateur.prenom}, réinitialisez votre mot de passe via ce lien (valable 1h) : ${lienReinitialisation}`,
+      html: genererEmailReinitialisation({ prenom: utilisateur.prenom, lienReinitialisation }),
+    });
+
+    return { message };
+  }
+
+  async reinitialiserMotDePasse(token: string, nouveauMotDePasse: string): Promise<{ message: string }> {
+    let payload: TokenReinitialisation;
+    try {
+      payload = this.jwtService.verify<TokenReinitialisation>(token, {
+        secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
+      });
+    } catch {
+      throw new BadRequestException('Ce lien de réinitialisation est invalide ou a expiré.');
+    }
+
+    if (payload.type !== 'reset_password') {
+      throw new BadRequestException('Ce lien de réinitialisation est invalide.');
+    }
+
+    const motDePasseHache = await bcrypt.hash(nouveauMotDePasse, SALT_ROUNDS);
+    await this.repository.utilisateur.update({
+      where: { id: payload.sub },
+      data: { motDePasse: motDePasseHache },
+    });
+
+    return { message: 'Mot de passe réinitialisé avec succès.' };
   }
 
   private issueTokens(payload: JwtPayload): TokenPair {

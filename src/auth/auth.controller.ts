@@ -15,7 +15,9 @@ import type { CookieOptions, Request, Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtRefreshGuard } from '../common/guards/jwt-refresh.guard';
 import { AuthService } from './auth.service';
+import { DemandeReinitialisationDto } from './dto/demande-reinitialisation.dto';
 import { LoginDto } from './dto/login.dto';
+import { ReinitialiserMotDePasseDto } from './dto/reinitialiser-mot-de-passe.dto';
 import { RegisterDto } from './dto/register.dto';
 import type { JwtPayload } from './types/authenticated-user.interface';
 
@@ -78,5 +80,23 @@ export class AuthController {
   logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie(REFRESH_COOKIE_NAME, { path: '/auth' });
     return { message: 'Déconnecté' };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('mot-de-passe-oublie')
+  @ApiOperation({ summary: "Demande de réinitialisation de mot de passe (envoi d'un lien par email)" })
+  demanderReinitialisation(@Body() dto: DemandeReinitialisationDto) {
+    return this.authService.demanderReinitialisation(dto.identifiant);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('reinitialiser-mot-de-passe')
+  @ApiOperation({ summary: 'Réinitialisation du mot de passe via le token reçu par email' })
+  reinitialiserMotDePasse(@Body() dto: ReinitialiserMotDePasseDto) {
+    return this.authService.reinitialiserMotDePasse(dto.token, dto.nouveauMotDePasse);
   }
 }

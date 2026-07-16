@@ -193,7 +193,6 @@ model Utilisateur {
   carnets             CarnetDigital[]
   notificationsRecues Notification[]
   recompensesRecues   Recompense[]    @relation("RecompensesRecuesParDonneur")
-  badges              DonneurBadge[]
 
   alertesCreees          Alerte[]         @relation("AlertesCreeesParAgent")
   recompensesAttribuees  Recompense[]     @relation("RecompensesAttribueesParAgent")
@@ -286,29 +285,6 @@ model ConseilSante {
   @@map("conseils_sante")
 }
 
-model Badge {
-  id                 String @id @default(cuid())
-  nom                String @unique
-  critereAttribution String
-
-  donneurs DonneurBadge[]
-
-  @@map("badges")
-}
-
-model DonneurBadge {
-  id            String      @id @default(cuid())
-  donneurId     String
-  donneur       Utilisateur @relation(fields: [donneurId], references: [id], onDelete: Cascade)
-  badgeId       String
-  badge         Badge       @relation(fields: [badgeId], references: [id], onDelete: Cascade)
-  dateObtention DateTime    @default(now())
-
-  @@unique([donneurId, badgeId])
-  @@index([badgeId])
-  @@map("donneur_badges")
-}
-
 model Notification {
   id          String             @id @default(cuid())
   type        TypeNotification
@@ -367,6 +343,17 @@ model MessageContact {
 
   @@index([statut])
   @@map("messages_contact")
+}
+
+//ABONNÉS À LA NEWSLETTER (popup du site public)
+
+model AbonneNewsletter {
+  id             String   @id @default(cuid())
+  nom            String
+  email          String   @unique
+  dateAbonnement DateTime @default(now())
+
+  @@map("abonnes_newsletter")
 }
 
 //IMAGES DE LA PAGE D'ACCUEIL (gérées depuis l'espace CNTS, stockées sur Cloudinary)
