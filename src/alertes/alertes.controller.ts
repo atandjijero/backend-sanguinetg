@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -71,6 +71,17 @@ export class AlertesController {
   @ApiOperation({ summary: 'Ouvrir / fermer une alerte (rôles opérationnels CNTS uniquement)' })
   updateStatut(@Param('id') id: string, @Body() dto: UpdateAlerteStatutDto, @CurrentUser() user: AuthenticatedUser) {
     return this.alertesService.updateStatut(id, dto, user);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(Role.AGENT_CNTS, Role.ADMIN)
+  @Delete(':id')
+  @ApiOperation({
+    summary: 'Supprimer une alerte (rôles opérationnels CNTS uniquement)',
+    description: 'Supprime aussi les réponses des donneurs liées à cette alerte ; les notifications déjà envoyées sont conservées.',
+  })
+  remove(@Param('id') id: string) {
+    return this.alertesService.remove(id);
   }
 
   @UseGuards(RolesGuard)

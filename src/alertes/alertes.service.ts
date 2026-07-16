@@ -140,7 +140,7 @@ export class AlertesService {
       },
       include: {
         ...ALERTE_INCLUDE,
-        _count: { select: { reponses: true } },
+        _count: { select: { reponses: true, notifications: true } },
       },
       orderBy: { dateCreation: 'desc' },
       take: 100,
@@ -292,6 +292,12 @@ export class AlertesService {
       },
       orderBy: { dateReponse: 'desc' },
     });
+  }
+
+  async remove(id: string) {
+    await this.getOrThrow(id);
+    await this.repository.alerte.delete({ where: { id } });
+    return { message: 'Alerte supprimée' };
   }
 
   private async getOrThrow(id: string) {
