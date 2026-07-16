@@ -54,8 +54,19 @@ async function bootstrap() {
     });
   });
 
+  // En plus du domaine de prod (FRONTEND_URL), on autorise les déploiements de
+  // prévisualisation Vercel (une URL *.vercel.app différente par branche/PR) : leur
+  // nombre est imprévisible, donc un simple motif regex plutôt qu'une liste figée.
+  const frontendUrl = configService.get<string>('FRONTEND_URL');
+  const vercelPreviewPattern = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
   app.enableCors({
-    origin: configService.get<string>('FRONTEND_URL'),
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      if (!origin || origin === frontendUrl || vercelPreviewPattern.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Origine non autorisée par CORS'));
+      }
+    },
     credentials: true,
   });
 

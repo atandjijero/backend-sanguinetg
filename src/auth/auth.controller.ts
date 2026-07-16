@@ -32,10 +32,15 @@ export class AuthController {
   ) {}
 
   private refreshCookieOptions(): CookieOptions {
+    // En production, backend (Render) et frontend (Vercel) sont sur des domaines différents :
+    // un cookie "lax" n'est alors jamais envoyé par le navigateur sur les requêtes fetch
+    // cross-site. "none" (qui exige "secure") est nécessaire dès qu'on sort du même site ;
+    // "lax" reste utilisé en dev (localhost) où "none" sans HTTPS serait rejeté.
+    const production = this.configService.get<string>('NODE_ENV') === 'production';
     return {
       httpOnly: true,
-      secure: this.configService.get<string>('NODE_ENV') === 'production',
-      sameSite: 'lax',
+      secure: production,
+      sameSite: production ? 'none' : 'lax',
       path: '/auth',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };

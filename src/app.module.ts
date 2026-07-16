@@ -21,8 +21,10 @@ import { NewsletterModule } from './newsletter/newsletter.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ThreatDetectionInterceptor } from './common/interceptors/threat-detection.interceptor';
 import { validateEnv } from './config/env.validation';
+import { AppController } from './app.controller';
 
 @Module({
+  controllers: [AppController],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
