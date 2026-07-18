@@ -41,6 +41,10 @@ export class MailService {
       port,
       secure,
       auth: { user, pass: password },
+      // Un serveur SMTP qui traîne ne doit pas bloquer indéfiniment la création d'une
+      // alerte (envoyée à N donneurs en parallèle) : on abandonne après 10s.
+      connectionTimeout: 10_000,
+      socketTimeout: 10_000,
     });
   }
 

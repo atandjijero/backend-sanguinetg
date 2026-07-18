@@ -385,9 +385,10 @@ export class AlertesService {
       })),
     });
 
-    // Push best-effort (n'échoue jamais la création de l'alerte) : le badge sur l'icône
-    // reflète le nombre total de notifications non lues du donneur, comme WhatsApp.
-    await Promise.all(
+    // Push best-effort, envoyé en arrière-plan SANS bloquer la réponse : l'agent qui lance
+    // l'alerte n'a pas à attendre que chaque appareil confirme la réception (appel réseau
+    // vers les serveurs de push, potentiellement lent) avant que la création réponde.
+    void Promise.all(
       envois.map(async (envoi) => {
         const nonLues = await this.repository.notification.count({
           where: { donneurId: envoi.donneurId, statut: { not: 'LUE' } },

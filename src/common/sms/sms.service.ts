@@ -51,6 +51,9 @@ export class SmsService {
           content,
           type: 'transactional',
         }),
+        // Un appel Brevo qui traîne ne doit pas bloquer indéfiniment la création d'une
+        // alerte (envoyée à N donneurs en parallèle) : on abandonne après 10s.
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (!response.ok) {
