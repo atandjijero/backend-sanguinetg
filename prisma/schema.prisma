@@ -193,6 +193,7 @@ model Utilisateur {
   carnets             CarnetDigital[]
   notificationsRecues Notification[]
   recompensesRecues   Recompense[]    @relation("RecompensesRecuesParDonneur")
+  pushSubscriptions   PushSubscription[]
 
   alertesCreees          Alerte[]         @relation("AlertesCreeesParAgent")
   recompensesAttribuees  Recompense[]     @relation("RecompensesAttribueesParAgent")
@@ -303,6 +304,22 @@ model Notification {
   @@index([donneurId, statut])
   @@index([alerteId])
   @@map("notifications")
+}
+
+// Un donneur peut être abonné aux notifications push depuis plusieurs appareils/navigateurs :
+// un abonnement par endpoint (l'URL fournie par le navigateur identifie l'appareil/l'installation).
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  donneurId String
+  donneur   Utilisateur @relation(fields: [donneurId], references: [id], onDelete: Cascade)
+
+  @@index([donneurId])
+  @@map("push_subscriptions")
 }
 
 model Recompense {

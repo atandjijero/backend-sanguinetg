@@ -89,6 +89,18 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   DEEPL_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  VAPID_PUBLIC_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  VAPID_PRIVATE_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  VAPID_SUBJECT?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

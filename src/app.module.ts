@@ -18,6 +18,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ImagesModule } from './images/images.module';
 import { TraductionModule } from './traduction/traduction.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
+import { PushModule } from './common/push/push.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ThreatDetectionInterceptor } from './common/interceptors/threat-detection.interceptor';
 import { validateEnv } from './config/env.validation';
@@ -51,6 +52,7 @@ import { AppController } from './app.controller';
     ImagesModule,
     TraductionModule,
     NewsletterModule,
+    PushModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

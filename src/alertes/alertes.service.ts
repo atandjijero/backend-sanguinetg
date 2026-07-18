@@ -17,6 +17,7 @@ import { RepositoryService } from '../repository/repository.service';
 import { distanceKm } from '../common/utils/geo.util';
 import { MailService } from '../common/mail/mail.service';
 import { SmsService } from '../common/sms/sms.service';
+import { PushService } from '../common/push/push.service';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.interface';
 import { genererEmailAlerte } from './alerte-email.template';
 import { CreateAlerteDto } from './dto/create-alerte.dto';
@@ -49,6 +50,7 @@ export class AlertesService {
     private readonly repository: RepositoryService,
     private readonly mail: MailService,
     private readonly sms: SmsService,
+    private readonly push: PushService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -72,31 +74,41 @@ export class AlertesService {
       select: { id: true, latitude: true, longitude: true },
     });
 
-    const resultats: Awaited<ReturnType<typeof this.creerAlertePourCentre>>[] = [];
-    for (const groupeSanguinRequis of dto.groupesSanguinsRequis) {
-      for (const quartierId of dto.quartierIds) {
-        const nombreDonneursMax = dto.nombreDonneursMaxParQuartier?.[quartierId];
-        const repartition = await this.repartirDonneursDuQuartier(
+    // Répartition des donneurs calculée en parallèle pour chaque paire (groupe, quartier) —
+    // c'était fait séquentiellement avant, ce qui multipliait le temps de réponse par le
+    // nombre de combinaisons choisies (groupes × quartiers × centres).
+    const paires = dto.groupesSanguinsRequis.flatMap((groupeSanguinRequis) =>
+      dto.quartierIds.map((quartierId) => ({ groupeSanguinRequis, quartierId })),
+    );
+    const repartitions = await Promise.all(
+      paires.map(async ({ groupeSanguinRequis, quartierId }) => ({
+        groupeSanguinRequis,
+        quartierId,
+        repartition: await this.repartirDonneursDuQuartier(
           groupeSanguinRequis,
           quartierId,
           dto.centreDonIds,
           centresSelectionnes,
-          nombreDonneursMax,
-        );
-        for (const centreDonId of dto.centreDonIds) {
-          resultats.push(
-            await this.creerAlertePourCentre(
-              groupeSanguinRequis,
-              quartierId,
-              centreDonId,
-              dto.rayonKm,
-              repartition.get(centreDonId) ?? [],
-              user.id,
-            ),
-          );
-        }
-      }
-    }
+          dto.nombreDonneursMaxParQuartier?.[quartierId],
+        ),
+      })),
+    );
+
+    // Création + notification de chaque combinaison (groupe × quartier × centre) en parallèle.
+    const resultats = await Promise.all(
+      repartitions.flatMap(({ groupeSanguinRequis, quartierId, repartition }) =>
+        dto.centreDonIds.map((centreDonId) =>
+          this.creerAlertePourCentre(
+            groupeSanguinRequis,
+            quartierId,
+            centreDonId,
+            dto.rayonKm,
+            repartition.get(centreDonId) ?? [],
+            user.id,
+          ),
+        ),
+      ),
+    );
     return resultats;
   }
 
@@ -332,22 +344,27 @@ export class AlertesService {
 
     const envois = await Promise.all(
       donneursCibles.map(async (donneur) => {
-        let emailEnvoye = false;
-        if (donneur.email) {
-          const token = this.genererTokenReponse(alerte.id, donneur.id);
-          const html = genererEmailAlerte({
-            prenom: donneur.prenom,
-            groupeSanguinLabel: groupeLabel,
-            quartierNom,
-            centreNom: alerte.centreDon?.nom ?? null,
-            centreAdresse: alerte.centreDon?.adresse ?? null,
-            lienJeViens: `${frontendUrl}/reponse-alerte?token=${token}&statut=JE_VIENS`,
-            lienIndisponible: `${frontendUrl}/reponse-alerte?token=${token}&statut=INDISPONIBLE`,
-            lienConnexion: `${frontendUrl}/connexion`,
-          });
-          emailEnvoye = await this.mail.envoyer({ to: donneur.email, subject: sujetEmail, text: contenu, html });
-        }
-        const smsEnvoye = donneur.telephone ? await this.sms.envoyer({ to: donneur.telephone, content: contenu }) : false;
+        const emailPromise = donneur.email
+          ? (() => {
+              const token = this.genererTokenReponse(alerte.id, donneur.id);
+              const html = genererEmailAlerte({
+                prenom: donneur.prenom,
+                groupeSanguinLabel: groupeLabel,
+                quartierNom,
+                centreNom: alerte.centreDon?.nom ?? null,
+                centreAdresse: alerte.centreDon?.adresse ?? null,
+                lienJeViens: `${frontendUrl}/reponse-alerte?token=${token}&statut=JE_VIENS`,
+                lienIndisponible: `${frontendUrl}/reponse-alerte?token=${token}&statut=INDISPONIBLE`,
+                lienConnexion: `${frontendUrl}/connexion`,
+              });
+              return this.mail.envoyer({ to: donneur.email!, subject: sujetEmail, text: contenu, html });
+            })()
+          : Promise.resolve(false);
+        const smsPromise = donneur.telephone
+          ? this.sms.envoyer({ to: donneur.telephone, content: contenu })
+          : Promise.resolve(false);
+
+        const [emailEnvoye, smsEnvoye] = await Promise.all([emailPromise, smsPromise]);
         return { donneurId: donneur.id, emailEnvoye, smsEnvoye };
       }),
     );
@@ -362,6 +379,22 @@ export class AlertesService {
         smsEnvoye: envoi.smsEnvoye,
       })),
     });
+
+    // Push best-effort (n'échoue jamais la création de l'alerte) : le badge sur l'icône
+    // reflète le nombre total de notifications non lues du donneur, comme WhatsApp.
+    await Promise.all(
+      envois.map(async (envoi) => {
+        const nonLues = await this.repository.notification.count({
+          where: { donneurId: envoi.donneurId, statut: { not: 'LUE' } },
+        });
+        await this.push.envoyerA(envoi.donneurId, {
+          title: 'Sanguine TG',
+          body: contenu,
+          url: '/espace-donneur/alertes',
+          badgeCount: nonLues,
+        });
+      }),
+    );
 
     return donneursCibles.length;
   }
