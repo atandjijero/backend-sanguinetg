@@ -10,7 +10,6 @@ import { Prisma, Role, StatutReponse } from '@prisma/client';
 import {
   formatGroupeSanguin,
   getCompatibleDonorGroups,
-  getCompatibleRecipientGroups,
   isDonneurCompatible,
 } from '../common/constants/blood-compatibility';
 import { RepositoryService } from '../repository/repository.service';
@@ -80,6 +79,7 @@ export class AlertesService {
     const paires = dto.groupesSanguinsRequis.flatMap((groupeSanguinRequis) =>
       dto.quartierIds.map((quartierId) => ({ groupeSanguinRequis, quartierId })),
     );
+    const rayonKm = dto.rayonKm ?? 10;
     const repartitions = await Promise.all(
       paires.map(async ({ groupeSanguinRequis, quartierId }) => ({
         groupeSanguinRequis,
@@ -90,6 +90,7 @@ export class AlertesService {
           dto.centreDonIds,
           centresSelectionnes,
           dto.nombreDonneursMaxParQuartier?.[quartierId],
+          rayonKm,
         ),
       })),
     );
@@ -159,21 +160,17 @@ export class AlertesService {
     });
   }
 
+  /**
+   * Un donneur ne voit que les alertes pour lesquelles il a réellement été notifié (table
+   * Notification, remplie par `notifierDonneurs`) — et non un recalcul indépendant par
+   * groupe/quartier, qui désynchronisait cette liste du plafond `nombreDonneursMaxParQuartier`
+   * et du statut ACTIF réellement appliqués au moment du ciblage.
+   */
   private async findAllPourDonneur(donneurId: string) {
-    const donneur = await this.repository.utilisateur.findUnique({
-      where: { id: donneurId },
-      select: { groupeSanguin: true, quartierId: true },
-    });
-
-    if (!donneur?.groupeSanguin || !donneur.quartierId) {
-      return [];
-    }
-
     const alertes = await this.repository.alerte.findMany({
       where: {
         statut: 'OUVERTE',
-        quartierId: donneur.quartierId,
-        groupeSanguinRequis: { in: getCompatibleRecipientGroups(donneur.groupeSanguin) },
+        notifications: { some: { donneurId } },
       },
       include: ALERTE_INCLUDE,
       orderBy: { dateCreation: 'desc' },
@@ -273,6 +270,14 @@ export class AlertesService {
 
     if (alerte.statut !== 'OUVERTE') {
       throw new BadRequestException('Cette alerte est fermée, votre réponse ne peut plus être enregistrée.');
+    }
+
+    // Un donneur ne peut répondre qu'aux alertes pour lesquelles il a réellement été notifié
+    // (même source de vérité que `findAllPourDonneur`) — sinon un donneur exclu par le
+    // plafond de ciblage, ou désactivé depuis, pourrait quand même se déclarer disponible.
+    const notifie = await this.repository.notification.findFirst({ where: { alerteId, donneurId } });
+    if (!notifie) {
+      throw new ForbiddenException("Vous n'avez pas été ciblé par cette alerte.");
     }
 
     const donneur = await this.repository.utilisateur.findUnique({
@@ -474,6 +479,7 @@ export class AlertesService {
     centreDonIds: string[],
     centres: { id: string; latitude: number | null; longitude: number | null }[],
     nombreDonneursMax: number | undefined,
+    rayonKm: number,
   ): Promise<Map<string, DonneurCible[]>> {
     const groupesCompatibles = getCompatibleDonorGroups(groupeSanguinRequis);
 
@@ -515,8 +521,12 @@ export class AlertesService {
       };
     });
 
-    avecCentreAssigne.sort((a, b) => a.distance - b.distance);
-    const selectionnes = nombreDonneursMax ? avecCentreAssigne.slice(0, nombreDonneursMax) : avecCentreAssigne;
+    // Le rayon ne s'applique qu'aux donneurs géolocalisés : un donneur sans coordonnées
+    // (distance = Infinity) reste éligible par défaut, comme avant — on ne peut pas exclure
+    // quelqu'un dont on ne connaît pas la position.
+    const dansLeRayon = avecCentreAssigne.filter((d) => d.distance === Infinity || d.distance <= rayonKm);
+    dansLeRayon.sort((a, b) => a.distance - b.distance);
+    const selectionnes = nombreDonneursMax ? dansLeRayon.slice(0, nombreDonneursMax) : dansLeRayon;
 
     const repartition = new Map<string, DonneurCible[]>();
     for (const donneur of selectionnes) {
