@@ -52,7 +52,6 @@ enum CategorieConseil {
 }
 
 enum TypeNotification {
-  SMS
   EMAIL
   PUSH
 }
@@ -292,7 +291,6 @@ model Notification {
   statut      StatutNotification @default(ENVOYEE)
   contenu     String?
   emailEnvoye Boolean            @default(false)
-  smsEnvoye   Boolean            @default(false)
   dateEnvoi   DateTime           @default(now())
 
   donneurId String

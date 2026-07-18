@@ -17,7 +17,7 @@ interface EnvoiPush {
 
 /**
  * Envoi de notifications push (Web Push / VAPID) best-effort : si les clés VAPID ne sont
- * pas configurées, l'envoi est journalisé et ignoré, comme MailService/SmsService — la
+ * pas configurées, l'envoi est journalisé et ignoré, comme MailService — la
  * mobilisation d'un donneur ne doit jamais dépendre de cette configuration optionnelle.
  */
 @Injectable()

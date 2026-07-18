@@ -15,7 +15,7 @@ export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Notifications du donneur connecté (push, avec statut email/sms envoyés)' })
+  @ApiOperation({ summary: 'Notifications du donneur connecté (push, avec statut email envoyé)' })
   findAll(@CurrentUser('id') donneurId: string) {
     return this.notificationsService.findAllPourDonneur(donneurId);
   }

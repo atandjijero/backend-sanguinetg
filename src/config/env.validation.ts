@@ -68,14 +68,6 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  BREVO_API_KEY?: string;
-
-  @IsOptional()
-  @IsString()
-  SMS_SENDER?: string;
-
-  @IsOptional()
-  @IsString()
   CLOUDINARY_CLOUD_NAME?: string;
 
   @IsOptional()

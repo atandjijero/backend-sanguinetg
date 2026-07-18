@@ -15,7 +15,6 @@ import {
 import { RepositoryService } from '../repository/repository.service';
 import { distanceKm } from '../common/utils/geo.util';
 import { MailService } from '../common/mail/mail.service';
-import { SmsService } from '../common/sms/sms.service';
 import { PushService } from '../common/push/push.service';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.interface';
 import { genererEmailAlerte } from './alerte-email.template';
@@ -34,7 +33,6 @@ interface DonneurCible {
   id: string;
   prenom: string;
   email: string | null;
-  telephone: string | null;
 }
 
 const ALERTE_INCLUDE = {
@@ -48,7 +46,6 @@ export class AlertesService {
   constructor(
     private readonly repository: RepositoryService,
     private readonly mail: MailService,
-    private readonly sms: SmsService,
     private readonly push: PushService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
@@ -349,8 +346,8 @@ export class AlertesService {
 
     const envois = await Promise.all(
       donneursCibles.map(async (donneur) => {
-        const emailPromise = donneur.email
-          ? (() => {
+        const emailEnvoye = donneur.email
+          ? await (async () => {
               const token = this.genererTokenReponse(alerte.id, donneur.id);
               const html = genererEmailAlerte({
                 prenom: donneur.prenom,
@@ -364,13 +361,9 @@ export class AlertesService {
               });
               return this.mail.envoyer({ to: donneur.email!, subject: sujetEmail, text: contenu, html });
             })()
-          : Promise.resolve(false);
-        const smsPromise = donneur.telephone
-          ? this.sms.envoyer({ to: donneur.telephone, content: contenu })
-          : Promise.resolve(false);
+          : false;
 
-        const [emailEnvoye, smsEnvoye] = await Promise.all([emailPromise, smsPromise]);
-        return { donneurId: donneur.id, emailEnvoye, smsEnvoye };
+        return { donneurId: donneur.id, emailEnvoye };
       }),
     );
 
@@ -381,7 +374,6 @@ export class AlertesService {
         type: 'PUSH' as const,
         contenu,
         emailEnvoye: envoi.emailEnvoye,
-        smsEnvoye: envoi.smsEnvoye,
       })),
     });
 
@@ -491,7 +483,7 @@ export class AlertesService {
         groupeSanguin: { in: groupesCompatibles },
         quartierId,
       },
-      select: { id: true, prenom: true, email: true, telephone: true, latitude: true, longitude: true },
+      select: { id: true, prenom: true, email: true, latitude: true, longitude: true },
     });
 
     const centreParDefaut = centreDonIds[0];
@@ -516,7 +508,6 @@ export class AlertesService {
         id: donneur.id,
         prenom: donneur.prenom,
         email: donneur.email,
-        telephone: donneur.telephone,
         centreId,
         distance,
       };
@@ -532,7 +523,7 @@ export class AlertesService {
     const repartition = new Map<string, DonneurCible[]>();
     for (const donneur of selectionnes) {
       const liste = repartition.get(donneur.centreId) ?? [];
-      liste.push({ id: donneur.id, prenom: donneur.prenom, email: donneur.email, telephone: donneur.telephone });
+      liste.push({ id: donneur.id, prenom: donneur.prenom, email: donneur.email });
       repartition.set(donneur.centreId, liste);
     }
     return repartition;
