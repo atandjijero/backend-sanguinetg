@@ -2,9 +2,11 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma, Role, StatutReponse } from '@prisma/client';
 import {
@@ -41,8 +43,13 @@ const ALERTE_INCLUDE = {
   creePar: { select: { id: true, nom: true, prenom: true } },
 } satisfies Prisma.AlerteInclude;
 
+/** Délai au-delà duquel une alerte OUVERTE sans aucune réponse se ferme automatiquement. */
+const DELAI_AUTO_FERMETURE_MS = 60 * 60 * 1000;
+
 @Injectable()
 export class AlertesService {
+  private readonly logger = new Logger(AlertesService.name);
+
   constructor(
     private readonly repository: RepositoryService,
     private readonly mail: MailService,
@@ -202,6 +209,7 @@ export class AlertesService {
     let sommeDelaisMs = 0;
     let nombreReponses = 0;
     let alertesCouvertesUneHeure = 0;
+    let sommeReponsesUneHeure = 0;
 
     for (const alerte of alertes) {
       const premiereReponse = alerte.reponses[0];
@@ -214,6 +222,9 @@ export class AlertesService {
       for (const reponse of alerte.reponses) {
         sommeDelaisMs += reponse.dateReponse.getTime() - alerte.dateCreation.getTime();
         nombreReponses += 1;
+        if (reponse.dateReponse.getTime() - alerte.dateCreation.getTime() <= UNE_HEURE_MS) {
+          sommeReponsesUneHeure += 1;
+        }
       }
     }
 
@@ -224,6 +235,8 @@ export class AlertesService {
       delaiMoyenMinutes: nombreReponses > 0 ? Math.round(sommeDelaisMs / nombreReponses / 60000) : null,
       tauxCouvertureUneHeure: nombreAlertes > 0 ? Math.round((alertesCouvertesUneHeure / nombreAlertes) * 100) : null,
       donneursMobilisesParAlerte: nombreAlertes > 0 ? Math.round((nombreReponses / nombreAlertes) * 10) / 10 : null,
+      /** Indicateur H1 : nombre moyen de donneurs compatibles mobilisés (« Je viens ») dans l'heure suivant le lancement d'un appel. */
+      donneursMobilisesUneHeure: nombreAlertes > 0 ? Math.round((sommeReponsesUneHeure / nombreAlertes) * 10) / 10 : null,
     };
   }
 
@@ -260,6 +273,77 @@ export class AlertesService {
       data: { statut: dto.statut },
       include: ALERTE_INCLUDE,
     });
+  }
+
+  /**
+   * Ferme automatiquement les alertes OUVERTE depuis plus d'une heure et n'ayant reçu
+   * aucune réponse (ni « Je viens » ni « Indisponible ») — au-delà de ce délai, l'alerte
+   * est considérée comme sans retour et libère la visibilité du dashboard pour les
+   * alertes réellement actives. Le CNTS garde la main via le bouton « Relancer ».
+   */
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async fermerAlertesExpirees() {
+    const seuil = new Date(Date.now() - DELAI_AUTO_FERMETURE_MS);
+    const { count } = await this.repository.alerte.updateMany({
+      where: {
+        statut: 'OUVERTE',
+        dateCreation: { lte: seuil },
+        reponses: { none: {} },
+      },
+      data: { statut: 'FERMEE' },
+    });
+    if (count > 0) {
+      this.logger.log(`${count} alerte(s) fermée(s) automatiquement (aucune réponse après 1h).`);
+    }
+    return count;
+  }
+
+  /**
+   * Rouvre une alerte fermée et renotifie (email + push) uniquement les donneurs déjà
+   * ciblés qui n'ont pas encore répondu — inutile de redéranger ceux qui ont déjà dit
+   * « Je viens » ou « Indisponible ».
+   */
+  async relancer(id: string, user: AuthenticatedUser) {
+    if (user.role === Role.SUPERADMIN) {
+      throw new ForbiddenException(
+        "Le SUPERADMIN administre la plateforme mais ne gère pas le cycle de vie des alertes (relance) : action réservée aux rôles opérationnels CNTS.",
+      );
+    }
+
+    const alerte = await this.repository.alerte.findUnique({ where: { id }, include: ALERTE_INCLUDE });
+    if (!alerte) {
+      throw new NotFoundException('Alerte introuvable');
+    }
+    if (alerte.statut !== 'FERMEE') {
+      throw new BadRequestException('Seule une alerte fermée peut être relancée.');
+    }
+
+    const [notifications, reponses] = await Promise.all([
+      this.repository.notification.findMany({
+        where: { alerteId: id },
+        distinct: ['donneurId'],
+        select: { donneurId: true },
+      }),
+      this.repository.reponse.findMany({ where: { alerteId: id }, select: { donneurId: true } }),
+    ]);
+    const donneurIdsAvecReponse = new Set(reponses.map((r) => r.donneurId));
+    const donneurIdsARelancer = notifications
+      .map((n) => n.donneurId)
+      .filter((donneurId) => !donneurIdsAvecReponse.has(donneurId));
+
+    const donneursARelancer = await this.repository.utilisateur.findMany({
+      where: { id: { in: donneurIdsARelancer } },
+      select: { id: true, prenom: true, email: true },
+    });
+
+    const alerteRouverte = await this.repository.alerte.update({
+      where: { id },
+      data: { statut: 'OUVERTE' },
+      include: ALERTE_INCLUDE,
+    });
+
+    const donneursNotifies = await this.notifierDonneurs(alerteRouverte, donneursARelancer);
+    return { ...alerteRouverte, donneursNotifies };
   }
 
   async repondre(alerteId: string, donneurId: string, dto: CreateReponseDto) {

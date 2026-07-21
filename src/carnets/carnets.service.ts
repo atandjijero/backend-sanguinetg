@@ -1,16 +1,27 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma, Role } from '@prisma/client';
 import { RepositoryService } from '../repository/repository.service';
+import { MailService } from '../common/mail/mail.service';
+import { PushService } from '../common/push/push.service';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.interface';
 import { CreateCarnetDto } from './dto/create-carnet.dto';
 import { FindCarnetsQuery } from './dto/find-carnets.query';
 import { UpdateCarnetDto } from './dto/update-carnet.dto';
 
 const DELAI_MINIMAL_ENTRE_DONS_JOURS = 90;
+/** Le rappel est envoyé quelques jours avant la date d'éligibilité, pour laisser au donneur le temps de s'organiser. */
+const ANTICIPATION_RAPPEL_JOURS = 3;
 
 @Injectable()
 export class CarnetsService {
-  constructor(private readonly repository: RepositoryService) {}
+  private readonly logger = new Logger(CarnetsService.name);
+
+  constructor(
+    private readonly repository: RepositoryService,
+    private readonly mail: MailService,
+    private readonly push: PushService,
+  ) {}
 
   async create(dto: CreateCarnetDto) {
     const dateDon = new Date(dto.dateDon);
@@ -76,6 +87,109 @@ export class CarnetsService {
     } catch (error) {
       throw this.mapPrismaError(error);
     }
+  }
+
+  /**
+   * Indicateurs H2 (mémoire, tableau 2) : taux de dons répétés (donneurs ayant donné au moins
+   * deux fois parmi tous les donneurs inscrits) et taux de rétention (donneurs inscrits depuis
+   * plus de `joursPeriode` jours ayant eu une activité récente sur la plateforme).
+   */
+  async statistiquesFidelisation(joursPeriode = 90) {
+    const [totalDonneurs, dons, donneursAnciens] = await Promise.all([
+      this.repository.utilisateur.count({ where: { role: 'DONNEUR' } }),
+      this.repository.carnetDigital.groupBy({ by: ['donneurId'], _count: { _all: true } }),
+      this.repository.utilisateur.findMany({
+        where: {
+          role: 'DONNEUR',
+          dateInscription: { lte: new Date(Date.now() - joursPeriode * 24 * 60 * 60 * 1000) },
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    const donneursRecurrents = dons.filter((d) => d._count._all >= 2).length;
+    const tauxDonsRepetes = totalDonneurs > 0 ? Math.round((donneursRecurrents / totalDonneurs) * 100) : null;
+
+    let tauxRetention: number | null = null;
+    if (donneursAnciens.length > 0) {
+      const seuilActivite = new Date(Date.now() - joursPeriode * 24 * 60 * 60 * 1000);
+      const actifsRecemment = await this.repository.sessionVisite.findMany({
+        where: {
+          utilisateurId: { in: donneursAnciens.map((d) => d.id) },
+          derniereActivite: { gte: seuilActivite },
+        },
+        select: { utilisateurId: true },
+        distinct: ['utilisateurId'],
+      });
+      tauxRetention = Math.round((actifsRecemment.length / donneursAnciens.length) * 100);
+    }
+
+    return {
+      totalDonneurs,
+      donneursRecurrents,
+      tauxDonsRepetes,
+      donneursEligiblesRetention: donneursAnciens.length,
+      tauxRetention,
+      joursPeriode,
+    };
+  }
+
+  /**
+   * Rappelle (email + push) aux donneurs actifs dont la date de prochaine éligibilité au don
+   * approche (ou est dépassée) et qui n'ont pas encore reçu ce rappel — un seul envoi par
+   * carnet, marqué via `rappelEnvoye` pour ne jamais redéranger deux fois pour la même date.
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_8AM)
+  async envoyerRappelsProchainDon() {
+    const seuil = new Date(Date.now() + ANTICIPATION_RAPPEL_JOURS * 24 * 60 * 60 * 1000);
+    const carnets = await this.repository.carnetDigital.findMany({
+      where: {
+        rappelEnvoye: false,
+        rappelProchaineDate: { lte: seuil },
+        donneur: { statut: 'ACTIF' },
+      },
+      select: {
+        id: true,
+        rappelProchaineDate: true,
+        donneur: { select: { id: true, prenom: true, email: true } },
+      },
+    });
+
+    for (const carnet of carnets) {
+      const dateLabel = carnet.rappelProchaineDate!.toLocaleDateString('fr-FR');
+      const contenu = `Bonjour ${carnet.donneur.prenom}, vous serez de nouveau éligible pour un don de sang à partir du ${dateLabel}. Merci pour votre engagement auprès du CNTS !`;
+
+      const emailEnvoye = carnet.donneur.email
+        ? await this.mail.envoyer({
+            to: carnet.donneur.email,
+            subject: 'Sanguine TG · Votre prochain don approche',
+            text: contenu,
+          })
+        : false;
+
+      await this.repository.notification.create({
+        data: {
+          donneurId: carnet.donneur.id,
+          alerteId: null,
+          type: 'PUSH',
+          contenu,
+          emailEnvoye,
+        },
+      });
+
+      void this.push.envoyerA(carnet.donneur.id, {
+        title: 'Sanguine TG',
+        body: contenu,
+        url: '/espace-donneur/carnet',
+      });
+
+      await this.repository.carnetDigital.update({ where: { id: carnet.id }, data: { rappelEnvoye: true } });
+    }
+
+    if (carnets.length > 0) {
+      this.logger.log(`${carnets.length} rappel(s) de prochain don envoyé(s).`);
+    }
+    return carnets.length;
   }
 
   private async getOrThrow(id: string) {

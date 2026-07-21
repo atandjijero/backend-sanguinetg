@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { RepositoryModule } from './repository/repository.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
@@ -18,6 +19,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ImagesModule } from './images/images.module';
 import { TraductionModule } from './traduction/traduction.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
+import { AvisModule } from './avis/avis.module';
+import { MessagerieModule } from './messagerie/messagerie.module';
 import { PushModule } from './common/push/push.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ThreatDetectionInterceptor } from './common/interceptors/threat-detection.interceptor';
@@ -36,6 +39,7 @@ import { AppController } from './app.controller';
       // (stats + listes + heartbeat + refresh) dépasse déjà ce seuil au chargement.
       throttlers: [{ ttl: 60_000, limit: 120 }],
     }),
+    ScheduleModule.forRoot(),
     RepositoryModule,
     SecurityModule,
     AuthModule,
@@ -53,6 +57,8 @@ import { AppController } from './app.controller';
     TraductionModule,
     NewsletterModule,
     PushModule,
+    AvisModule,
+    MessagerieModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

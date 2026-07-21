@@ -24,6 +24,16 @@ export class CarnetsController {
     return this.carnetsService.create(dto);
   }
 
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPERADMIN, Role.ADMIN, Role.AGENT_CNTS, Role.MEDECIN)
+  @Get('statistiques/fidelisation')
+  @ApiOperation({
+    summary: 'Indicateurs de fidélisation (H2) : taux de dons répétés et taux de rétention des donneurs',
+  })
+  statistiquesFidelisation(@Query('joursPeriode') joursPeriode?: string) {
+    return this.carnetsService.statistiquesFidelisation(joursPeriode ? Number(joursPeriode) : undefined);
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Historique des dons',

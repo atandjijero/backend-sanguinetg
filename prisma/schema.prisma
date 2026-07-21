@@ -202,6 +202,11 @@ model Utilisateur {
 
   sessionsVisite SessionVisite[]
 
+  avis AvisDonneur?
+
+  conversationDonneur Conversation?  @relation("ConversationDonneur")
+  messagesEnvoyes     ChatMessage[]  @relation("MessagesEnvoyes")
+
   @@index([role, statut])
   @@index([groupeSanguin, quartierId])
   @@map("utilisateurs")
@@ -258,6 +263,7 @@ model CarnetDigital {
   centreDon           CentreDon   @relation(fields: [centreDonId], references: [id])
   messageRemerciement String?
   rappelProchaineDate DateTime?
+  rappelEnvoye        Boolean     @default(false)
 
   reponseId String?  @unique
   reponse   Reponse? @relation(fields: [reponseId], references: [id])
@@ -268,6 +274,51 @@ model CarnetDigital {
   @@index([donneurId])
   @@index([centreDonId])
   @@map("carnets_digitaux")
+}
+
+// AVIS DE SATISFACTION (un avis par donneur, sur l'information et le suivi reçus)
+
+model AvisDonneur {
+  id           String      @id @default(cuid())
+  donneurId    String      @unique
+  donneur      Utilisateur @relation(fields: [donneurId], references: [id], onDelete: Cascade)
+  note         Int
+  commentaire  String?
+  dateCreation DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@map("avis_donneurs")
+}
+
+// MESSAGERIE (chat donneur ↔ médecin, un fil partagé par donneur)
+
+model Conversation {
+  id               String   @id @default(cuid())
+  donneurId        String   @unique
+  donneur          Utilisateur @relation("ConversationDonneur", fields: [donneurId], references: [id], onDelete: Cascade)
+  dateCreation     DateTime @default(now())
+  dernierMessageAt DateTime @default(now())
+
+  messages ChatMessage[]
+
+  @@map("conversations")
+}
+
+model ChatMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  auteurId       String
+  auteur         Utilisateur  @relation("MessagesEnvoyes", fields: [auteurId], references: [id], onDelete: Cascade)
+  contenu          String
+  lu               Boolean      @default(false)
+  dateEnvoi        DateTime     @default(now())
+  edite            Boolean      @default(false)
+  dateModification DateTime?
+  supprime         Boolean      @default(false)
+
+  @@index([conversationId, dateEnvoi])
+  @@map("messages_chat")
 }
 
 model ConseilSante {

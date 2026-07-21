@@ -75,6 +75,18 @@ export class AlertesController {
 
   @UseGuards(RolesGuard)
   @Roles(Role.AGENT_CNTS, Role.ADMIN)
+  @Post(':id/relancer')
+  @ApiOperation({
+    summary: 'Relancer une alerte fermée (rôles opérationnels CNTS uniquement)',
+    description:
+      "Rouvre l'alerte et renvoie une notification (email + push) aux donneurs déjà ciblés qui n'ont pas encore répondu.",
+  })
+  relancer(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.alertesService.relancer(id, user);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(Role.AGENT_CNTS, Role.ADMIN)
   @Delete(':id')
   @ApiOperation({
     summary: 'Supprimer une alerte (rôles opérationnels CNTS uniquement)',
