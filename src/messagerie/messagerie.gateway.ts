@@ -33,7 +33,7 @@ interface SocketUser {
  */
 @WebSocketGateway({ cors: { origin: true, credentials: true }, namespace: '/messagerie' })
 export class MessagerieGateway implements OnGatewayInit, OnGatewayConnection {
-  @WebSocketServer() server: Server;
+  @WebSocketServer() server!: Server;
 
   private readonly logger = new Logger(MessagerieGateway.name);
 
@@ -160,16 +160,27 @@ export class MessagerieGateway implements OnGatewayInit, OnGatewayConnection {
    * contrairement à un message.
    */
   @SubscribeMessage('typing_start')
-  async onTypingStart(@ConnectedSocket() client: Socket, @MessageBody() data: { conversationId?: string }) {
-    await this.relayerFrappe(client, data?.conversationId, true);
+  async onTypingStart(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { conversationId?: string; type?: 'texte' | 'vocal' },
+  ) {
+    await this.relayerFrappe(client, data?.conversationId, true, data?.type ?? 'texte');
   }
 
   @SubscribeMessage('typing_stop')
-  async onTypingStop(@ConnectedSocket() client: Socket, @MessageBody() data: { conversationId?: string }) {
-    await this.relayerFrappe(client, data?.conversationId, false);
+  async onTypingStop(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { conversationId?: string; type?: 'texte' | 'vocal' },
+  ) {
+    await this.relayerFrappe(client, data?.conversationId, false, data?.type ?? 'texte');
   }
 
-  private async relayerFrappe(client: Socket, conversationId: string | undefined, enTrainDecrire: boolean) {
+  private async relayerFrappe(
+    client: Socket,
+    conversationId: string | undefined,
+    enTrainDecrire: boolean,
+    type: 'texte' | 'vocal',
+  ) {
     const user = client.data.user as SocketUser | undefined;
     if (!user) return;
 
@@ -182,6 +193,7 @@ export class MessagerieGateway implements OnGatewayInit, OnGatewayConnection {
       donneurId: cible.donneurId,
       auteurRole: user.role,
       enTrainDecrire,
+      type,
     });
   }
 }
