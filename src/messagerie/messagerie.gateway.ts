@@ -152,4 +152,36 @@ export class MessagerieGateway implements OnGatewayInit, OnGatewayConnection {
   diffuserMiseAJour(resultat: { message: unknown; donneurId: string }) {
     this.server.to(`donneur:${resultat.donneurId}`).to('staff').emit('message_mis_a_jour', resultat.message);
   }
+
+  /**
+   * Indicateur « X est en train d'écrire » : diffusé seulement à l'AUTRE côté (jamais à
+   * l'auteur lui-même, contrairement aux messages) — inutile de se notifier soi-même qu'on
+   * est en train d'écrire. Pas d'accusé de réception : un événement perdu n'est pas grave,
+   * contrairement à un message.
+   */
+  @SubscribeMessage('typing_start')
+  async onTypingStart(@ConnectedSocket() client: Socket, @MessageBody() data: { conversationId?: string }) {
+    await this.relayerFrappe(client, data?.conversationId, true);
+  }
+
+  @SubscribeMessage('typing_stop')
+  async onTypingStop(@ConnectedSocket() client: Socket, @MessageBody() data: { conversationId?: string }) {
+    await this.relayerFrappe(client, data?.conversationId, false);
+  }
+
+  private async relayerFrappe(client: Socket, conversationId: string | undefined, enTrainDecrire: boolean) {
+    const user = client.data.user as SocketUser | undefined;
+    if (!user) return;
+
+    const cible = await this.messagerieService.trouverConversationPourFrappe(user, conversationId);
+    if (!cible) return;
+
+    const salle = user.role === Role.DONNEUR ? 'staff' : `donneur:${cible.donneurId}`;
+    client.to(salle).emit('frappe', {
+      conversationId: cible.conversationId,
+      donneurId: cible.donneurId,
+      auteurRole: user.role,
+      enTrainDecrire,
+    });
+  }
 }

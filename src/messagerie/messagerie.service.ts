@@ -23,6 +23,21 @@ export class MessagerieService {
     });
   }
 
+  /**
+   * Résout la conversation concernée par un indicateur de frappe (« X est en train d'écrire »),
+   * SANS en créer une — un simple événement de frappe ne doit pas faire apparaître une
+   * conversation vide dans la liste du staff avant qu'un premier message ait vraiment été envoyé.
+   */
+  async trouverConversationPourFrappe(user: { id: string; role: Role }, conversationId?: string) {
+    if (user.role === Role.DONNEUR) {
+      const conversation = await this.repository.conversation.findUnique({ where: { donneurId: user.id } });
+      return conversation ? { conversationId: conversation.id, donneurId: conversation.donneurId } : null;
+    }
+    if (!conversationId) return null;
+    const conversation = await this.repository.conversation.findUnique({ where: { id: conversationId } });
+    return conversation ? { conversationId: conversation.id, donneurId: conversation.donneurId } : null;
+  }
+
   async maConversationAvecMessages(donneurId: string) {
     const conversation = await this.getOrCreateConversation(donneurId);
     const messages = await this.repository.chatMessage.findMany({
