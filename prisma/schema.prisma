@@ -56,6 +56,11 @@ enum TypeNotification {
   PUSH
 }
 
+enum TypeMessageChat {
+  TEXTE
+  AUDIO
+}
+
 enum StatutNotification {
   ENVOYEE
   RECUE
@@ -311,6 +316,10 @@ model ChatMessage {
   auteurId       String
   auteur         Utilisateur  @relation("MessagesEnvoyes", fields: [auteurId], references: [id], onDelete: Cascade)
   contenu          String
+  type             TypeMessageChat @default(TEXTE)
+  audioUrl         String?
+  audioCloudinaryId String?
+  audioDureeSecondes Int?
   lu               Boolean      @default(false)
   dateEnvoi        DateTime     @default(now())
   edite            Boolean      @default(false)

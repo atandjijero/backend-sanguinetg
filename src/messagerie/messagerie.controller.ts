@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -6,6 +19,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.interface';
 import { EnvoyerMessageDto } from './dto/envoyer-message.dto';
+import { EnvoyerMessageVocalDto } from './dto/envoyer-message-vocal.dto';
 import { ModifierMessageDto } from './dto/modifier-message.dto';
 import { MessagerieGateway } from './messagerie.gateway';
 import { MessagerieService } from './messagerie.service';
@@ -52,6 +66,43 @@ export class MessagerieController {
   })
   async envoyerMessage(@Body() dto: EnvoyerMessageDto, @CurrentUser() user: AuthenticatedUser) {
     const resultat = await this.messagerieService.envoyerMessage(user, dto);
+    this.gateway.diffuserMessage(resultat);
+    return resultat.message;
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(Role.DONNEUR, Role.MEDECIN)
+  @Post('messages/vocal')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('audio/')) {
+          callback(new BadRequestException('Seuls les fichiers audio sont acceptés'), false);
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  @ApiOperation({
+    summary: 'Envoyer un message vocal (upload audio vers Cloudinary)',
+    description: 'Réservé au donneur (sa propre conversation) et au médecin (avec conversationId).',
+  })
+  async envoyerMessageVocal(
+    @Body() dto: EnvoyerMessageVocalDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Aucun fichier audio reçu');
+    }
+    const resultat = await this.messagerieService.envoyerMessageVocal(
+      user,
+      file.buffer,
+      dto.dureeSecondes,
+      dto.conversationId,
+    );
     this.gateway.diffuserMessage(resultat);
     return resultat.message;
   }

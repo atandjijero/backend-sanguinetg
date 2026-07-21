@@ -18,13 +18,17 @@ export class CloudinaryService {
     });
   }
 
-  upload(file: Buffer, folder: string): Promise<CloudinaryUploadResult> {
+  upload(
+    file: Buffer,
+    folder: string,
+    resourceType: 'image' | 'video' | 'auto' = 'image',
+  ): Promise<CloudinaryUploadResult> {
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        { folder, resource_type: 'image' },
+        { folder, resource_type: resourceType },
         (error, result) => {
           if (error || !result) {
-            reject(error ?? new Error("Échec de l'envoi de l'image vers Cloudinary"));
+            reject(error ?? new Error("Échec de l'envoi du fichier vers Cloudinary"));
             return;
           }
           resolve({ url: result.secure_url, publicId: result.public_id });
@@ -34,7 +38,7 @@ export class CloudinaryService {
     });
   }
 
-  async destroy(publicId: string): Promise<void> {
-    await cloudinary.uploader.destroy(publicId);
+  async destroy(publicId: string, resourceType: 'image' | 'video' | 'auto' = 'image'): Promise<void> {
+    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
   }
 }

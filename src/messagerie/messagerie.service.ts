@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { RepositoryService } from '../repository/repository.service';
+import { CloudinaryService } from '../common/cloudinary/cloudinary.service';
 import { EnvoyerMessageDto } from './dto/envoyer-message.dto';
 
 const AUTEUR_SELECT = {
@@ -12,7 +13,10 @@ const DELAI_MODIFICATION_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class MessagerieService {
-  constructor(private readonly repository: RepositoryService) {}
+  constructor(
+    private readonly repository: RepositoryService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   /** Un donneur n'a qu'une seule conversation, créée paresseusement à son premier message. */
   async getOrCreateConversation(donneurId: string) {
@@ -139,6 +143,57 @@ export class MessagerieService {
     return { message, donneurId: conversation.donneurId, conversationId: conversation.id };
   }
 
+  /**
+   * Un donneur écrit dans sa propre conversation (créée si besoin) ; un membre du staff doit
+   * préciser quelle conversation (quel donneur) il vise, et seul un médecin peut y répondre.
+   * Même règles d'accès que `envoyerMessage`, pour un enregistrement vocal envoyé via l'upload
+   * REST plutôt que par le WebSocket (qui ne gère pas les fichiers binaires).
+   */
+  async envoyerMessageVocal(
+    auteur: { id: string; role: Role },
+    buffer: Buffer,
+    dureeSecondes: number,
+    conversationId?: string,
+  ) {
+    let conversation;
+    if (auteur.role === Role.DONNEUR) {
+      conversation = await this.getOrCreateConversation(auteur.id);
+    } else {
+      if (auteur.role !== Role.MEDECIN) {
+        throw new ForbiddenException('Seul un médecin peut répondre dans la messagerie.');
+      }
+      if (!conversationId) {
+        throw new BadRequestException('conversationId requis pour répondre en tant que médecin.');
+      }
+      conversation = await this.repository.conversation.findUnique({ where: { id: conversationId } });
+      if (!conversation) {
+        throw new NotFoundException('Conversation introuvable');
+      }
+    }
+
+    const { url, publicId } = await this.cloudinary.upload(buffer, 'sanguine-tg/messagerie-audio', 'video');
+
+    const message = await this.repository.chatMessage.create({
+      data: {
+        conversationId: conversation.id,
+        auteurId: auteur.id,
+        contenu: '',
+        type: 'AUDIO',
+        audioUrl: url,
+        audioCloudinaryId: publicId,
+        audioDureeSecondes: Math.round(dureeSecondes),
+      },
+      include: AUTEUR_SELECT,
+    });
+
+    await this.repository.conversation.update({
+      where: { id: conversation.id },
+      data: { dernierMessageAt: message.dateEnvoi },
+    });
+
+    return { message, donneurId: conversation.donneurId, conversationId: conversation.id };
+  }
+
   /** Seul l'auteur peut modifier son message, et seulement dans les 15 minutes suivant l'envoi. */
   async modifierMessage(auteur: { id: string; role: Role }, messageId: string, contenuBrut: string) {
     const message = await this.getMessageOuThrow(messageId);
@@ -148,6 +203,9 @@ export class MessagerieService {
     }
     if (message.supprime) {
       throw new BadRequestException('Ce message a été supprimé et ne peut plus être modifié.');
+    }
+    if (message.type === 'AUDIO') {
+      throw new BadRequestException('Un message vocal ne peut pas être modifié.');
     }
     if (Date.now() - message.dateEnvoi.getTime() > DELAI_MODIFICATION_MS) {
       throw new BadRequestException('Le délai de modification (15 minutes) est dépassé.');
@@ -178,9 +236,13 @@ export class MessagerieService {
       return { message, donneurId: message.conversation.donneurId };
     }
 
+    if (message.type === 'AUDIO' && message.audioCloudinaryId) {
+      await this.cloudinary.destroy(message.audioCloudinaryId, 'video').catch(() => undefined);
+    }
+
     const messageSupprime = await this.repository.chatMessage.update({
       where: { id: messageId },
-      data: { contenu: '', supprime: true, dateModification: new Date() },
+      data: { contenu: '', supprime: true, dateModification: new Date(), audioUrl: null, audioCloudinaryId: null },
       include: AUTEUR_SELECT,
     });
 
