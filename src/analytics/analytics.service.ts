@@ -32,14 +32,40 @@ export class AnalyticsService {
   async stats() {
     const seuil = new Date(Date.now() - SEUIL_EN_LIGNE_MS);
 
-    const [enLigne, connectes] = await Promise.all([
+    const [enLigne, connectes, recents] = await Promise.all([
       this.repository.sessionVisite.count({ where: { derniereActivite: { gte: seuil } } }),
       this.repository.sessionVisite.count({
         where: { derniereActivite: { gte: seuil }, utilisateurId: { not: null } },
       }),
+      this.repository.sessionVisite.findMany({
+        where: { derniereActivite: { gte: seuil }, utilisateurId: { not: null } },
+        orderBy: { derniereActivite: 'desc' },
+        take: 3,
+        select: { utilisateur: { select: { id: true, nom: true, prenom: true } } },
+      }),
     ]);
 
-    return { enLigne, connectes, anonymes: enLigne - connectes };
+    return {
+      enLigne,
+      connectes,
+      anonymes: enLigne - connectes,
+      recents: recents.map((s) => s.utilisateur!),
+    };
+  }
+
+  async connectes() {
+    const seuil = new Date(Date.now() - SEUIL_EN_LIGNE_MS);
+
+    const sessions = await this.repository.sessionVisite.findMany({
+      where: { derniereActivite: { gte: seuil }, utilisateurId: { not: null } },
+      orderBy: { derniereActivite: 'desc' },
+      select: {
+        derniereActivite: true,
+        utilisateur: { select: { id: true, nom: true, prenom: true, role: true } },
+      },
+    });
+
+    return sessions.map((s) => ({ ...s.utilisateur!, derniereActivite: s.derniereActivite }));
   }
 
   private extraireUtilisateurId(authHeader?: string): string | undefined {

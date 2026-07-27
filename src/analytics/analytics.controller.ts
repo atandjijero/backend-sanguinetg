@@ -30,4 +30,13 @@ export class AnalyticsController {
   stats() {
     return this.analyticsService.stats();
   }
+
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @Get('connectes')
+  @ApiOperation({ summary: 'Liste des utilisateurs actuellement connectés (réservé SUPERADMIN)' })
+  connectes() {
+    return this.analyticsService.connectes();
+  }
 }
