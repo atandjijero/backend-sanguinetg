@@ -19,6 +19,7 @@ import { DemandeReinitialisationDto } from './dto/demande-reinitialisation.dto';
 import { LoginDto } from './dto/login.dto';
 import { ReinitialiserMotDePasseDto } from './dto/reinitialiser-mot-de-passe.dto';
 import { RegisterDto } from './dto/register.dto';
+import { VerifierEmailDto } from './dto/verifier-email.dto';
 import type { JwtPayload } from './types/authenticated-user.interface';
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
@@ -36,7 +37,8 @@ export class AuthController {
     // un cookie "lax" n'est alors jamais envoyé par le navigateur sur les requêtes fetch
     // cross-site. "none" (qui exige "secure") est nécessaire dès qu'on sort du même site ;
     // "lax" reste utilisé en dev (localhost) où "none" sans HTTPS serait rejeté.
-    const production = this.configService.get<string>('NODE_ENV') === 'production';
+    const production =
+      this.configService.get<string>('NODE_ENV') === 'production';
     return {
       httpOnly: true,
       secure: production,
@@ -50,20 +52,31 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('register')
   @ApiOperation({ summary: "Inscription d'un nouveau donneur" })
-  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
-    const { user, tokens } = await this.authService.register(dto);
-    res.cookie(REFRESH_COOKIE_NAME, tokens.refreshToken, this.refreshCookieOptions());
-    return { user, accessToken: tokens.accessToken };
+  async register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('login')
   @ApiOperation({ summary: 'Connexion par email/téléphone + mot de passe' })
-  async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const { user, tokens } = await this.authService.login(dto.identifiant, dto.motDePasse, req.ip, req.headers['user-agent']);
-    res.cookie(REFRESH_COOKIE_NAME, tokens.refreshToken, this.refreshCookieOptions());
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { user, tokens } = await this.authService.login(
+      dto.identifiant,
+      dto.motDePasse,
+      req.ip,
+      req.headers['user-agent'],
+    );
+    res.cookie(
+      REFRESH_COOKIE_NAME,
+      tokens.refreshToken,
+      this.refreshCookieOptions(),
+    );
     return { user, accessToken: tokens.accessToken };
   }
 
@@ -71,11 +84,20 @@ export class AuthController {
   @UseGuards(JwtRefreshGuard)
   @HttpCode(HttpStatus.OK)
   @Post('refresh')
-  @ApiOperation({ summary: "Renouvellement de l'access token via le cookie de refresh" })
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  @ApiOperation({
+    summary: "Renouvellement de l'access token via le cookie de refresh",
+  })
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const payload = req.user as JwtPayload;
     const tokens = await this.authService.refresh(payload);
-    res.cookie(REFRESH_COOKIE_NAME, tokens.refreshToken, this.refreshCookieOptions());
+    res.cookie(
+      REFRESH_COOKIE_NAME,
+      tokens.refreshToken,
+      this.refreshCookieOptions(),
+    );
     return { accessToken: tokens.accessToken };
   }
 
@@ -91,7 +113,10 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('mot-de-passe-oublie')
-  @ApiOperation({ summary: "Demande de réinitialisation de mot de passe (envoi d'un lien par email)" })
+  @ApiOperation({
+    summary:
+      "Demande de réinitialisation de mot de passe (envoi d'un lien par email)",
+  })
   demanderReinitialisation(@Body() dto: DemandeReinitialisationDto) {
     return this.authService.demanderReinitialisation(dto.identifiant);
   }
@@ -100,8 +125,24 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('reinitialiser-mot-de-passe')
-  @ApiOperation({ summary: 'Réinitialisation du mot de passe via le token reçu par email' })
+  @ApiOperation({
+    summary: 'Réinitialisation du mot de passe via le token reçu par email',
+  })
   reinitialiserMotDePasse(@Body() dto: ReinitialiserMotDePasseDto) {
-    return this.authService.reinitialiserMotDePasse(dto.token, dto.nouveauMotDePasse);
+    return this.authService.reinitialiserMotDePasse(
+      dto.token,
+      dto.nouveauMotDePasse,
+    );
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('verifier-email')
+  @ApiOperation({
+    summary: "Vérification de l'email via le token reçu à l'inscription",
+  })
+  verifierEmail(@Body() dto: VerifierEmailDto) {
+    return this.authService.verifierEmail(dto.token);
   }
 }

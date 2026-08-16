@@ -183,6 +183,7 @@ model Utilisateur {
   motDePasse String?
   role       Role
   statut     StatutUtilisateur @default(ACTIF)
+  emailVerifie Boolean         @default(false)
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 

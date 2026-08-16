@@ -30,7 +30,8 @@ export class RegisterDto {
 
   @ApiProperty({ example: '+22890123456' })
   @Matches(/^(\+228)?[0-9]{8}$/, {
-    message: 'Le numéro de téléphone doit être un numéro togolais valide (8 chiffres, préfixe +228 optionnel)',
+    message:
+      'Le numéro de téléphone doit être un numéro togolais valide (8 chiffres, préfixe +228 optionnel)',
   })
   telephone: string;
 
@@ -45,7 +46,9 @@ export class RegisterDto {
 
   @ApiProperty({ example: 'MotDePasse2024' })
   @IsString()
-  @Match('motDePasse', { message: 'La confirmation ne correspond pas au mot de passe' })
+  @Match('motDePasse', {
+    message: 'La confirmation ne correspond pas au mot de passe',
+  })
   confirmationMotDePasse: string;
 
   @ApiPropertyOptional({ enum: GroupeSanguin })

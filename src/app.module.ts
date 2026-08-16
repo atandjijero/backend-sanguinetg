@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RepositoryModule } from './repository/repository.module';
 import { UsersModule } from './users/users.module';
@@ -23,6 +23,7 @@ import { AvisModule } from './avis/avis.module';
 import { MessagerieModule } from './messagerie/messagerie.module';
 import { PushModule } from './common/push/push.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { FrenchThrottlerGuard } from './common/guards/french-throttler.guard';
 import { ThreatDetectionInterceptor } from './common/interceptors/threat-detection.interceptor';
 import { validateEnv } from './config/env.validation';
 import { AppController } from './app.controller';
@@ -61,7 +62,7 @@ import { AppController } from './app.controller';
     MessagerieModule,
   ],
   providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: FrenchThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_INTERCEPTOR, useClass: ThreatDetectionInterceptor },
   ],

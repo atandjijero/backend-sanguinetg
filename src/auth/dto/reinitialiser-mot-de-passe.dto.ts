@@ -18,6 +18,8 @@ export class ReinitialiserMotDePasseDto {
 
   @ApiProperty()
   @IsString()
-  @Match('nouveauMotDePasse', { message: 'La confirmation ne correspond pas au nouveau mot de passe' })
+  @Match('nouveauMotDePasse', {
+    message: 'La confirmation ne correspond pas au nouveau mot de passe',
+  })
   confirmationNouveauMotDePasse: string;
 }

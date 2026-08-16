@@ -39,4 +39,13 @@ export class AnalyticsController {
   connectes() {
     return this.analyticsService.connectes();
   }
+
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @Get('sessions-recentes')
+  @ApiOperation({ summary: 'Sessions de visite des 14 derniers jours, pour la tendance de fréquentation (réservé SUPERADMIN)' })
+  sessionsRecentes() {
+    return this.analyticsService.sessionsRecentes();
+  }
 }

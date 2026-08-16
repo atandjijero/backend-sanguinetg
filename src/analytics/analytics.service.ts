@@ -53,6 +53,18 @@ export class AnalyticsService {
     };
   }
 
+  async sessionsRecentes(jours = 14) {
+    const depuis = new Date(Date.now() - jours * 24 * 60 * 60 * 1000);
+    depuis.setHours(0, 0, 0, 0);
+
+    const sessions = await this.repository.sessionVisite.findMany({
+      where: { premiereActivite: { gte: depuis } },
+      select: { premiereActivite: true, utilisateurId: true },
+    });
+
+    return sessions;
+  }
+
   async connectes() {
     const seuil = new Date(Date.now() - SEUIL_EN_LIGNE_MS);
 

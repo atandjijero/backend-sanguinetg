@@ -58,12 +58,11 @@ export class AlertesService {
     private readonly configService: ConfigService,
   ) {}
 
-
   // Crée une alerte par combinaison (groupe sanguin × quartier × centre) — chaque
-   //combinaison cible et notifie un ensemble de donneurs distinct, donc reste une Alerte
-   //séparée (fermeture/suivi indépendants) même quand elles sont lancées en un seul geste.
-   //Quand plusieurs centres sont choisis pour un même quartier, les donneurs éligibles sont
-   //répartis vers le centre sélectionné le plus proche (jamais notifiés deux fois).
+  //combinaison cible et notifie un ensemble de donneurs distinct, donc reste une Alerte
+  //séparée (fermeture/suivi indépendants) même quand elles sont lancées en un seul geste.
+  //Quand plusieurs centres sont choisis pour un même quartier, les donneurs éligibles sont
+  //répartis vers le centre sélectionné le plus proche (jamais notifiés deux fois).
 
   async create(dto: CreateAlerteDto, user: AuthenticatedUser) {
     if (user.role === Role.SUPERADMIN) {
@@ -81,7 +80,10 @@ export class AlertesService {
     // c'était fait séquentiellement avant, ce qui multipliait le temps de réponse par le
     // nombre de combinaisons choisies (groupes × quartiers × centres).
     const paires = dto.groupesSanguinsRequis.flatMap((groupeSanguinRequis) =>
-      dto.quartierIds.map((quartierId) => ({ groupeSanguinRequis, quartierId })),
+      dto.quartierIds.map((quartierId) => ({
+        groupeSanguinRequis,
+        quartierId,
+      })),
     );
     const rayonKm = dto.rayonKm ?? 10;
     const repartitions = await Promise.all(
@@ -125,23 +127,50 @@ export class AlertesService {
     donneursCibles: DonneurCible[],
     agentId: string,
   ) {
-    let alerte;
+    const alerte = await this.enregistrerAlerte(
+      groupeSanguinRequis,
+      quartierId,
+      centreDonId,
+      rayonKm,
+      agentId,
+    );
+
+    const donneursNotifies = await this.notifierDonneurs(
+      alerte,
+      donneursCibles,
+    );
+    return { ...alerte, donneursNotifies };
+  }
+
+  private async enregistrerAlerte(
+    groupeSanguinRequis: Prisma.AlerteGetPayload<object>['groupeSanguinRequis'],
+    quartierId: string,
+    centreDonId: string,
+    rayonKm: number | undefined,
+    agentId: string,
+  ) {
     try {
-      alerte = await this.repository.alerte.create({
-        data: { groupeSanguinRequis, quartierId, centreDonId, rayonKm, creeParId: agentId },
+      return await this.repository.alerte.create({
+        data: {
+          groupeSanguinRequis,
+          quartierId,
+          centreDonId,
+          rayonKm,
+          creeParId: agentId,
+        },
         include: ALERTE_INCLUDE,
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
         throw new BadRequestException(
           `Le quartier ou le centre de collecte sélectionné est invalide.`,
         );
       }
       throw error;
     }
-
-    const donneursNotifies = await this.notifierDonneurs(alerte, donneursCibles);
-    return { ...alerte, donneursNotifies };
   }
 
   async findAll(query: FindAlertesQuery, user: AuthenticatedUser) {
@@ -181,12 +210,20 @@ export class AlertesService {
     });
 
     const reponses = await this.repository.reponse.findMany({
-      where: { donneurId, alerteId: { in: alertes.map((alerte) => alerte.id) } },
+      where: {
+        donneurId,
+        alerteId: { in: alertes.map((alerte) => alerte.id) },
+      },
       select: { alerteId: true, statut: true },
     });
-    const reponseParAlerte = new Map(reponses.map((reponse) => [reponse.alerteId, reponse.statut]));
+    const reponseParAlerte = new Map(
+      reponses.map((reponse) => [reponse.alerteId, reponse.statut]),
+    );
 
-    return alertes.map((alerte) => ({ ...alerte, maReponse: reponseParAlerte.get(alerte.id) ?? null }));
+    return alertes.map((alerte) => ({
+      ...alerte,
+      maReponse: reponseParAlerte.get(alerte.id) ?? null,
+    }));
   }
 
   /**
@@ -214,15 +251,20 @@ export class AlertesService {
     for (const alerte of alertes) {
       const premiereReponse = alerte.reponses[0];
       if (premiereReponse) {
-        const delaiPremiereReponseMs = premiereReponse.dateReponse.getTime() - alerte.dateCreation.getTime();
+        const delaiPremiereReponseMs =
+          premiereReponse.dateReponse.getTime() - alerte.dateCreation.getTime();
         if (delaiPremiereReponseMs <= UNE_HEURE_MS) {
           alertesCouvertesUneHeure += 1;
         }
       }
       for (const reponse of alerte.reponses) {
-        sommeDelaisMs += reponse.dateReponse.getTime() - alerte.dateCreation.getTime();
+        sommeDelaisMs +=
+          reponse.dateReponse.getTime() - alerte.dateCreation.getTime();
         nombreReponses += 1;
-        if (reponse.dateReponse.getTime() - alerte.dateCreation.getTime() <= UNE_HEURE_MS) {
+        if (
+          reponse.dateReponse.getTime() - alerte.dateCreation.getTime() <=
+          UNE_HEURE_MS
+        ) {
           sommeReponsesUneHeure += 1;
         }
       }
@@ -232,16 +274,31 @@ export class AlertesService {
     return {
       nombreAlertes,
       nombreReponses,
-      delaiMoyenMinutes: nombreReponses > 0 ? Math.round(sommeDelaisMs / nombreReponses / 60000) : null,
-      tauxCouvertureUneHeure: nombreAlertes > 0 ? Math.round((alertesCouvertesUneHeure / nombreAlertes) * 100) : null,
-      donneursMobilisesParAlerte: nombreAlertes > 0 ? Math.round((nombreReponses / nombreAlertes) * 10) / 10 : null,
+      delaiMoyenMinutes:
+        nombreReponses > 0
+          ? Math.round(sommeDelaisMs / nombreReponses / 60000)
+          : null,
+      tauxCouvertureUneHeure:
+        nombreAlertes > 0
+          ? Math.round((alertesCouvertesUneHeure / nombreAlertes) * 100)
+          : null,
+      donneursMobilisesParAlerte:
+        nombreAlertes > 0
+          ? Math.round((nombreReponses / nombreAlertes) * 10) / 10
+          : null,
       /** Indicateur H1 : nombre moyen de donneurs compatibles mobilisés (« Je viens ») dans l'heure suivant le lancement d'un appel. */
-      donneursMobilisesUneHeure: nombreAlertes > 0 ? Math.round((sommeReponsesUneHeure / nombreAlertes) * 10) / 10 : null,
+      donneursMobilisesUneHeure:
+        nombreAlertes > 0
+          ? Math.round((sommeReponsesUneHeure / nombreAlertes) * 10) / 10
+          : null,
     };
   }
 
   async findOne(id: string, user: AuthenticatedUser) {
-    const alerte = await this.repository.alerte.findUnique({ where: { id }, include: ALERTE_INCLUDE });
+    const alerte = await this.repository.alerte.findUnique({
+      where: { id },
+      include: ALERTE_INCLUDE,
+    });
     if (!alerte) {
       throw new NotFoundException('Alerte introuvable');
     }
@@ -254,16 +311,24 @@ export class AlertesService {
     }
 
     const [jeViens, indisponible] = await Promise.all([
-      this.repository.reponse.count({ where: { alerteId: id, statut: 'JE_VIENS' } }),
-      this.repository.reponse.count({ where: { alerteId: id, statut: 'INDISPONIBLE' } }),
+      this.repository.reponse.count({
+        where: { alerteId: id, statut: 'JE_VIENS' },
+      }),
+      this.repository.reponse.count({
+        where: { alerteId: id, statut: 'INDISPONIBLE' },
+      }),
     ]);
     return { ...alerte, resume: { jeViens, indisponible } };
   }
 
-  async updateStatut(id: string, dto: UpdateAlerteStatutDto, user: AuthenticatedUser) {
+  async updateStatut(
+    id: string,
+    dto: UpdateAlerteStatutDto,
+    user: AuthenticatedUser,
+  ) {
     if (user.role === Role.SUPERADMIN) {
       throw new ForbiddenException(
-        "Le SUPERADMIN administre la plateforme mais ne gère pas le cycle de vie des alertes (ouverture/fermeture) : action réservée aux rôles opérationnels CNTS.",
+        'Le SUPERADMIN administre la plateforme mais ne gère pas le cycle de vie des alertes (ouverture/fermeture) : action réservée aux rôles opérationnels CNTS.',
       );
     }
 
@@ -293,7 +358,9 @@ export class AlertesService {
       data: { statut: 'FERMEE' },
     });
     if (count > 0) {
-      this.logger.log(`${count} alerte(s) fermée(s) automatiquement (aucune réponse après 1h).`);
+      this.logger.log(
+        `${count} alerte(s) fermée(s) automatiquement (aucune réponse après 1h).`,
+      );
     }
     return count;
   }
@@ -306,16 +373,21 @@ export class AlertesService {
   async relancer(id: string, user: AuthenticatedUser) {
     if (user.role === Role.SUPERADMIN) {
       throw new ForbiddenException(
-        "Le SUPERADMIN administre la plateforme mais ne gère pas le cycle de vie des alertes (relance) : action réservée aux rôles opérationnels CNTS.",
+        'Le SUPERADMIN administre la plateforme mais ne gère pas le cycle de vie des alertes (relance) : action réservée aux rôles opérationnels CNTS.',
       );
     }
 
-    const alerte = await this.repository.alerte.findUnique({ where: { id }, include: ALERTE_INCLUDE });
+    const alerte = await this.repository.alerte.findUnique({
+      where: { id },
+      include: ALERTE_INCLUDE,
+    });
     if (!alerte) {
       throw new NotFoundException('Alerte introuvable');
     }
     if (alerte.statut !== 'FERMEE') {
-      throw new BadRequestException('Seule une alerte fermée peut être relancée.');
+      throw new BadRequestException(
+        'Seule une alerte fermée peut être relancée.',
+      );
     }
 
     const [notifications, reponses] = await Promise.all([
@@ -324,17 +396,23 @@ export class AlertesService {
         distinct: ['donneurId'],
         select: { donneurId: true },
       }),
-      this.repository.reponse.findMany({ where: { alerteId: id }, select: { donneurId: true } }),
+      this.repository.reponse.findMany({
+        where: { alerteId: id },
+        select: { donneurId: true },
+      }),
     ]);
     const donneurIdsAvecReponse = new Set(reponses.map((r) => r.donneurId));
     const donneurIdsARelancer = notifications
       .map((n) => n.donneurId)
       .filter((donneurId) => !donneurIdsAvecReponse.has(donneurId));
 
-    const donneursARelancer = await this.repository.utilisateur.findMany({
+    const donneursARelancerBrut = await this.repository.utilisateur.findMany({
       where: { id: { in: donneurIdsARelancer } },
       select: { id: true, prenom: true, email: true },
     });
+    const donneursARelancer = await this.filtrerDonneursEligibles(
+      donneursARelancerBrut,
+    );
 
     const alerteRouverte = await this.repository.alerte.update({
       where: { id },
@@ -342,7 +420,10 @@ export class AlertesService {
       include: ALERTE_INCLUDE,
     });
 
-    const donneursNotifies = await this.notifierDonneurs(alerteRouverte, donneursARelancer);
+    const donneursNotifies = await this.notifierDonneurs(
+      alerteRouverte,
+      donneursARelancer,
+    );
     return { ...alerteRouverte, donneursNotifies };
   }
 
@@ -350,15 +431,21 @@ export class AlertesService {
     const alerte = await this.getOrThrow(alerteId);
 
     if (alerte.statut !== 'OUVERTE') {
-      throw new BadRequestException('Cette alerte est fermée, votre réponse ne peut plus être enregistrée.');
+      throw new BadRequestException(
+        'Cette alerte est fermée, votre réponse ne peut plus être enregistrée.',
+      );
     }
 
     // Un donneur ne peut répondre qu'aux alertes pour lesquelles il a réellement été notifié
     // (même source de vérité que `findAllPourDonneur`) — sinon un donneur exclu par le
     // plafond de ciblage, ou désactivé depuis, pourrait quand même se déclarer disponible.
-    const notifie = await this.repository.notification.findFirst({ where: { alerteId, donneurId } });
+    const notifie = await this.repository.notification.findFirst({
+      where: { alerteId, donneurId },
+    });
     if (!notifie) {
-      throw new ForbiddenException("Vous n'avez pas été ciblé par cette alerte.");
+      throw new ForbiddenException(
+        "Vous n'avez pas été ciblé par cette alerte.",
+      );
     }
 
     const donneur = await this.repository.utilisateur.findUnique({
@@ -367,11 +454,17 @@ export class AlertesService {
     });
 
     if (!donneur?.groupeSanguin) {
-      throw new BadRequestException('Complétez votre groupe sanguin avant de répondre à une alerte.');
+      throw new BadRequestException(
+        'Complétez votre groupe sanguin avant de répondre à une alerte.',
+      );
     }
 
-    if (!isDonneurCompatible(donneur.groupeSanguin, alerte.groupeSanguinRequis)) {
-      throw new ForbiddenException("Votre groupe sanguin n'est pas compatible avec cette alerte.");
+    if (
+      !isDonneurCompatible(donneur.groupeSanguin, alerte.groupeSanguinRequis)
+    ) {
+      throw new ForbiddenException(
+        "Votre groupe sanguin n'est pas compatible avec cette alerte.",
+      );
     }
 
     return this.repository.reponse.upsert({
@@ -386,7 +479,15 @@ export class AlertesService {
     return this.repository.reponse.findMany({
       where: { alerteId },
       include: {
-        donneur: { select: { id: true, nom: true, prenom: true, telephone: true, groupeSanguin: true } },
+        donneur: {
+          select: {
+            id: true,
+            nom: true,
+            prenom: true,
+            telephone: true,
+            groupeSanguin: true,
+          },
+        },
       },
       orderBy: { dateReponse: 'desc' },
     });
@@ -426,7 +527,8 @@ export class AlertesService {
       : '';
     const contenu = `Alerte don de sang : besoin urgent de ${groupeLabel} à ${quartierNom}.${centreInfo} Répondez « Je viens » si vous êtes disponible.`;
     const sujetEmail = `Alerte don de sang : ${groupeLabel} recherché`;
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
     const envois = await Promise.all(
       donneursCibles.map(async (donneur) => {
@@ -443,7 +545,12 @@ export class AlertesService {
                 lienIndisponible: `${frontendUrl}/reponse-alerte?token=${token}&statut=INDISPONIBLE`,
                 lienConnexion: `${frontendUrl}/connexion`,
               });
-              return this.mail.envoyer({ to: donneur.email!, subject: sujetEmail, text: contenu, html });
+              return this.mail.envoyer({
+                to: donneur.email!,
+                subject: sujetEmail,
+                text: contenu,
+                html,
+              });
             })()
           : false;
 
@@ -482,7 +589,11 @@ export class AlertesService {
   }
 
   private genererTokenReponse(alerteId: string, donneurId: string): string {
-    const payload: TokenReponseEmail = { type: 'reponse_alerte', alerteId, donneurId };
+    const payload: TokenReponseEmail = {
+      type: 'reponse_alerte',
+      alerteId,
+      donneurId,
+    };
     return this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
       expiresIn: '30d',
@@ -496,7 +607,9 @@ export class AlertesService {
         secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
       });
     } catch {
-      throw new BadRequestException('Ce lien de réponse est invalide ou a expiré.');
+      throw new BadRequestException(
+        'Ce lien de réponse est invalide ou a expiré.',
+      );
     }
 
     if (payload.type !== 'reponse_alerte') {
@@ -529,7 +642,12 @@ export class AlertesService {
     });
 
     const maReponse = await this.repository.reponse.findUnique({
-      where: { alerteId_donneurId: { alerteId: payload.alerteId, donneurId: payload.donneurId } },
+      where: {
+        alerteId_donneurId: {
+          alerteId: payload.alerteId,
+          donneurId: payload.donneurId,
+        },
+      },
     });
 
     return {
@@ -554,7 +672,11 @@ export class AlertesService {
     groupeSanguinRequis: Prisma.AlerteGetPayload<object>['groupeSanguinRequis'],
     quartierId: string,
     centreDonIds: string[],
-    centres: { id: string; latitude: number | null; longitude: number | null }[],
+    centres: {
+      id: string;
+      latitude: number | null;
+      longitude: number | null;
+    }[],
     nombreDonneursMax: number | undefined,
     rayonKm: number,
   ): Promise<Map<string, DonneurCible[]>> {
@@ -567,12 +689,20 @@ export class AlertesService {
         groupeSanguin: { in: groupesCompatibles },
         quartierId,
       },
-      select: { id: true, prenom: true, email: true, latitude: true, longitude: true },
+      select: {
+        id: true,
+        prenom: true,
+        email: true,
+        latitude: true,
+        longitude: true,
+      },
     });
+
+    const donneursEligibles = await this.filtrerDonneursEligibles(donneurs);
 
     const centreParDefaut = centreDonIds[0];
 
-    const avecCentreAssigne = donneurs.map((donneur) => {
+    const avecCentreAssigne = donneursEligibles.map((donneur) => {
       let centreId = centreParDefaut;
       let distance = Infinity;
       if (donneur.latitude != null && donneur.longitude != null) {
@@ -600,16 +730,59 @@ export class AlertesService {
     // Le rayon ne s'applique qu'aux donneurs géolocalisés : un donneur sans coordonnées
     // (distance = Infinity) reste éligible par défaut, comme avant — on ne peut pas exclure
     // quelqu'un dont on ne connaît pas la position.
-    const dansLeRayon = avecCentreAssigne.filter((d) => d.distance === Infinity || d.distance <= rayonKm);
+    const dansLeRayon = avecCentreAssigne.filter(
+      (d) => d.distance === Infinity || d.distance <= rayonKm,
+    );
     dansLeRayon.sort((a, b) => a.distance - b.distance);
-    const selectionnes = nombreDonneursMax ? dansLeRayon.slice(0, nombreDonneursMax) : dansLeRayon;
+    const selectionnes = nombreDonneursMax
+      ? dansLeRayon.slice(0, nombreDonneursMax)
+      : dansLeRayon;
 
     const repartition = new Map<string, DonneurCible[]>();
     for (const donneur of selectionnes) {
       const liste = repartition.get(donneur.centreId) ?? [];
-      liste.push({ id: donneur.id, prenom: donneur.prenom, email: donneur.email });
+      liste.push({
+        id: donneur.id,
+        prenom: donneur.prenom,
+        email: donneur.email,
+      });
       repartition.set(donneur.centreId, liste);
     }
     return repartition;
+  }
+
+  /**
+   * Exclut les donneurs pas encore éligibles (délai réglementaire de 90 jours depuis leur
+   * dernier don non écoulé) : inutile de les mobiliser pour une alerte s'ils ne peuvent pas
+   * légalement donner.
+   */
+  private async filtrerDonneursEligibles<T extends { id: string }>(
+    donneurs: T[],
+  ): Promise<T[]> {
+    if (donneurs.length === 0) return donneurs;
+
+    const carnetsRecents = await this.repository.carnetDigital.findMany({
+      where: { donneurId: { in: donneurs.map((d) => d.id) } },
+      orderBy: { dateDon: 'desc' },
+      select: { donneurId: true, rappelProchaineDate: true },
+    });
+
+    const prochaineEligibiliteParDonneur = new Map<string, Date | null>();
+    for (const carnet of carnetsRecents) {
+      if (!prochaineEligibiliteParDonneur.has(carnet.donneurId)) {
+        prochaineEligibiliteParDonneur.set(
+          carnet.donneurId,
+          carnet.rappelProchaineDate,
+        );
+      }
+    }
+
+    const maintenant = new Date();
+    return donneurs.filter((donneur) => {
+      const prochaineEligibilite = prochaineEligibiliteParDonneur.get(
+        donneur.id,
+      );
+      return !prochaineEligibilite || prochaineEligibilite <= maintenant;
+    });
   }
 }

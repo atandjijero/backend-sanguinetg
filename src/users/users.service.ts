@@ -53,12 +53,17 @@ export class UsersService {
   }
 
   async changePassword(id: string, dto: ChangePasswordDto) {
-    const utilisateur = await this.repository.utilisateur.findUnique({ where: { id } });
+    const utilisateur = await this.repository.utilisateur.findUnique({
+      where: { id },
+    });
     if (!utilisateur || !utilisateur.motDePasse) {
       throw new NotFoundException('Utilisateur introuvable');
     }
 
-    const motDePasseValide = await bcrypt.compare(dto.ancienMotDePasse, utilisateur.motDePasse);
+    const motDePasseValide = await bcrypt.compare(
+      dto.ancienMotDePasse,
+      utilisateur.motDePasse,
+    );
     if (!motDePasseValide) {
       throw new UnauthorizedException("L'ancien mot de passe est incorrect");
     }
@@ -90,8 +95,13 @@ export class UsersService {
 
   async createStaff(dto: CreateStaffDto, creePar: { role: Role }) {
     const rolesReservesSuperadmin: Role[] = [Role.SUPERADMIN, Role.ADMIN];
-    if (creePar.role !== Role.SUPERADMIN && rolesReservesSuperadmin.includes(dto.role)) {
-      throw new ForbiddenException('Seul un SUPERADMIN peut créer un compte ADMIN ou SUPERADMIN.');
+    if (
+      creePar.role !== Role.SUPERADMIN &&
+      rolesReservesSuperadmin.includes(dto.role)
+    ) {
+      throw new ForbiddenException(
+        'Seul un SUPERADMIN peut créer un compte ADMIN ou SUPERADMIN.',
+      );
     }
 
     const motDePasseHache = await bcrypt.hash(dto.motDePasse, SALT_ROUNDS);
@@ -104,6 +114,7 @@ export class UsersService {
           telephone: dto.telephone,
           motDePasse: motDePasseHache,
           role: dto.role,
+          emailVerifie: true,
         },
         select: PUBLIC_USER_SELECT,
       });
@@ -135,7 +146,9 @@ export class UsersService {
   private mapPrismaError(error: unknown) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
-        return new ConflictException('Un compte existe déjà avec cet email ou ce numéro de téléphone.');
+        return new ConflictException(
+          'Un compte existe déjà avec cet email ou ce numéro de téléphone.',
+        );
       }
       if (error.code === 'P2003') {
         return new BadRequestException('Le quartier sélectionné est invalide.');
