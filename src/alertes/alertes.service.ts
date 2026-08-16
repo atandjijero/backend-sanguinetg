@@ -530,59 +530,71 @@ export class AlertesService {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
-    const envois = await Promise.all(
-      donneursCibles.map(async (donneur) => {
-        const emailEnvoye = donneur.email
-          ? await (async () => {
-              const token = this.genererTokenReponse(alerte.id, donneur.id);
-              const html = genererEmailAlerte({
-                prenom: donneur.prenom,
-                groupeSanguinLabel: groupeLabel,
-                quartierNom,
-                centreNom: alerte.centreDon?.nom ?? null,
-                centreAdresse: alerte.centreDon?.adresse ?? null,
-                lienJeViens: `${frontendUrl}/reponse-alerte?token=${token}&statut=JE_VIENS`,
-                lienIndisponible: `${frontendUrl}/reponse-alerte?token=${token}&statut=INDISPONIBLE`,
-                lienConnexion: `${frontendUrl}/connexion`,
-              });
-              return this.mail.envoyer({
-                to: donneur.email!,
-                subject: sujetEmail,
-                text: contenu,
-                html,
-              });
-            })()
-          : false;
-
-        return { donneurId: donneur.id, emailEnvoye };
-      }),
+    const notifications =
+      await this.repository.notification.createManyAndReturn({
+        data: donneursCibles.map((donneur) => ({
+          donneurId: donneur.id,
+          alerteId: alerte.id,
+          type: 'PUSH' as const,
+          contenu,
+          emailEnvoye: false,
+        })),
+      });
+    const notificationIdParDonneur = new Map(
+      notifications.map((n) => [n.donneurId, n.id]),
     );
 
-    await this.repository.notification.createMany({
-      data: envois.map((envoi) => ({
-        donneurId: envoi.donneurId,
-        alerteId: alerte.id,
-        type: 'PUSH' as const,
-        contenu,
-        emailEnvoye: envoi.emailEnvoye,
-      })),
-    });
+    // Email et push envoyés en arrière-plan, SANS bloquer la réponse de création d'alerte :
+    // l'agent n'a pas à attendre qu'un email SMTP parte (jusqu'à 10s de timeout par envoi)
+    // ni qu'un appareil confirme la réception d'un push avant que sa page réponde.
+    void (async () => {
+      await Promise.all(
+        donneursCibles.map(async (donneur) => {
+          if (!donneur.email) return;
+          const token = this.genererTokenReponse(alerte.id, donneur.id);
+          const html = genererEmailAlerte({
+            prenom: donneur.prenom,
+            groupeSanguinLabel: groupeLabel,
+            quartierNom,
+            centreNom: alerte.centreDon?.nom ?? null,
+            centreAdresse: alerte.centreDon?.adresse ?? null,
+            lienJeViens: `${frontendUrl}/reponse-alerte?token=${token}&statut=JE_VIENS`,
+            lienIndisponible: `${frontendUrl}/reponse-alerte?token=${token}&statut=INDISPONIBLE`,
+            lienConnexion: `${frontendUrl}/connexion`,
+          });
+          const emailEnvoye = await this.mail.envoyer({
+            to: donneur.email,
+            subject: sujetEmail,
+            text: contenu,
+            html,
+          });
+          const notificationId = notificationIdParDonneur.get(donneur.id);
+          if (emailEnvoye && notificationId) {
+            await this.repository.notification.update({
+              where: { id: notificationId },
+              data: { emailEnvoye: true },
+            });
+          }
+        }),
+      );
 
-    // Push best-effort, envoyé en arrière-plan SANS bloquer la réponse : l'agent qui lance
-    // l'alerte n'a pas à attendre que chaque appareil confirme la réception (appel réseau
-    // vers les serveurs de push, potentiellement lent) avant que la création réponde.
-    void Promise.all(
-      envois.map(async (envoi) => {
-        const nonLues = await this.repository.notification.count({
-          where: { donneurId: envoi.donneurId, statut: { not: 'LUE' } },
-        });
-        await this.push.envoyerA(envoi.donneurId, {
-          title: 'Sanguine TG',
-          body: contenu,
-          url: '/espace-donneur/alertes',
-          badgeCount: nonLues,
-        });
-      }),
+      await Promise.all(
+        donneursCibles.map(async (donneur) => {
+          const nonLues = await this.repository.notification.count({
+            where: { donneurId: donneur.id, statut: { not: 'LUE' } },
+          });
+          await this.push.envoyerA(donneur.id, {
+            title: 'Sanguine TG',
+            body: contenu,
+            url: '/espace-donneur/alertes',
+            badgeCount: nonLues,
+          });
+        }),
+      );
+    })().catch((error: unknown) =>
+      this.logger.warn(
+        `Envoi des notifications de l'alerte ${alerte.id} partiellement échoué : ${String(error)}`,
+      ),
     );
 
     return donneursCibles.length;

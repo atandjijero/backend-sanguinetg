@@ -27,7 +27,10 @@ export class MailService {
     const password = this.configService.get<string>('SMTP_PASSWORD');
     const port = this.configService.get<number>('MAIL_PORT') ?? 587;
     const secure = this.configService.get<string>('MAIL_SECURE') === 'true';
-    const fromEmail = this.configService.get<string>('MAIL_FROM') ?? user ?? 'no-reply@sanguine-tg.local';
+    const fromEmail =
+      this.configService.get<string>('MAIL_FROM') ??
+      user ??
+      'no-reply@sanguine-tg.local';
     const fromName = this.configService.get<string>('MAIL_FROM_NAME');
     this.from = fromName ? `"${fromName}" <${fromEmail}>` : fromEmail;
 
@@ -45,20 +48,35 @@ export class MailService {
       // alerte (envoyée à N donneurs en parallèle) : on abandonne après 10s.
       connectionTimeout: 10_000,
       socketTimeout: 10_000,
+      // Pool de connexions réutilisées plutôt qu'une nouvelle connexion SMTP par email :
+      // accélère nettement les envois groupés (alertes à de nombreux donneurs).
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 100,
     });
   }
 
   async envoyer({ to, subject, text, html }: EnvoiEmail): Promise<boolean> {
     if (!this.transporter) {
-      this.logger.warn(`SMTP non configuré : email à "${to}" ("${subject}") non envoyé.`);
+      this.logger.warn(
+        `SMTP non configuré : email à "${to}" ("${subject}") non envoyé.`,
+      );
       return false;
     }
 
     try {
-      await this.transporter.sendMail({ from: this.from, to, subject, text, html });
+      await this.transporter.sendMail({
+        from: this.from,
+        to,
+        subject,
+        text,
+        html,
+      });
       return true;
     } catch (error) {
-      this.logger.warn(`Envoi d'email à "${to}" échoué : ${(error as Error).message}`);
+      this.logger.warn(
+        `Envoi d'email à "${to}" échoué : ${(error as Error).message}`,
+      );
       return false;
     }
   }
