@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { GroupeSanguin } from '@prisma/client';
 import {
+  Equals,
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsOptional,
@@ -60,4 +62,16 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   quartierId?: string;
+
+  @ApiProperty({
+    example: true,
+    description:
+      "Consentement explicite à l'utilisation des informations du donneur pour être contacté lors d'urgences de don compatibles.",
+  })
+  @IsBoolean()
+  @Equals(true, {
+    message:
+      "Vous devez accepter l'utilisation de vos informations pour vous inscrire.",
+  })
+  consentement: boolean;
 }

@@ -76,6 +76,7 @@ export class AuthService {
           role: 'DONNEUR',
           groupeSanguin: dto.groupeSanguin,
           quartierId: dto.quartierId,
+          consentementDate: new Date(),
         },
         select: PUBLIC_USER_SELECT,
       });

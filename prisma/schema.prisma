@@ -184,6 +184,7 @@ model Utilisateur {
   role       Role
   statut     StatutUtilisateur @default(ACTIF)
   emailVerifie Boolean         @default(false)
+  consentementDate DateTime?
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
