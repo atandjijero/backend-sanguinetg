@@ -18,6 +18,7 @@ import { RepositoryService } from '../repository/repository.service';
 import { distanceKm } from '../common/utils/geo.util';
 import { MailService } from '../common/mail/mail.service';
 import { PushService } from '../common/push/push.service';
+import { CacheService } from '../common/cache/cache.service';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.interface';
 import { genererEmailAlerte } from './alerte-email.template';
 import { CreateAlerteDto } from './dto/create-alerte.dto';
@@ -37,6 +38,15 @@ interface DonneurCible {
   email: string | null;
 }
 
+export interface StatistiquesMobilisation {
+  nombreAlertes: number;
+  nombreReponses: number;
+  delaiMoyenMinutes: number | null;
+  tauxCouvertureUneHeure: number | null;
+  donneursMobilisesParAlerte: number | null;
+  donneursMobilisesUneHeure: number | null;
+}
+
 const ALERTE_INCLUDE = {
   quartier: true,
   centreDon: true,
@@ -54,6 +64,7 @@ export class AlertesService {
     private readonly repository: RepositoryService,
     private readonly mail: MailService,
     private readonly push: PushService,
+    private readonly cache: CacheService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -230,7 +241,17 @@ export class AlertesService {
    * Indicateurs H1 (mémoire, tableau 1) : délai moyen entre le lancement d'une alerte et les
    * réponses « Je viens », et taux d'alertes ayant obtenu une première réponse en moins d'une heure.
    */
-  async statistiquesMobilisation() {
+  async statistiquesMobilisation(): Promise<StatistiquesMobilisation> {
+    const cle = 'stats:mobilisation';
+    const enCache = await this.cache.get<StatistiquesMobilisation>(cle);
+    if (enCache) return enCache;
+
+    const resultat = await this.calculerStatistiquesMobilisation();
+    await this.cache.set(cle, resultat, 300);
+    return resultat;
+  }
+
+  private async calculerStatistiquesMobilisation() {
     const alertes = await this.repository.alerte.findMany({
       select: {
         dateCreation: true,

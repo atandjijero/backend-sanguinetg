@@ -10,6 +10,7 @@ import { Prisma, Role } from '@prisma/client';
 import { RepositoryService } from '../repository/repository.service';
 import { MailService } from '../common/mail/mail.service';
 import { PushService } from '../common/push/push.service';
+import { CacheService } from '../common/cache/cache.service';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.interface';
 import { CreateCarnetDto } from './dto/create-carnet.dto';
 import { FindCarnetsQuery } from './dto/find-carnets.query';
@@ -19,6 +20,15 @@ const DELAI_MINIMAL_ENTRE_DONS_JOURS = 90;
 /** Le rappel est envoyé quelques jours avant la date d'éligibilité, pour laisser au donneur le temps de s'organiser. */
 const ANTICIPATION_RAPPEL_JOURS = 3;
 
+export interface StatistiquesFidelisation {
+  totalDonneurs: number;
+  donneursRecurrents: number;
+  tauxDonsRepetes: number | null;
+  donneursEligiblesRetention: number;
+  tauxRetention: number | null;
+  joursPeriode: number;
+}
+
 @Injectable()
 export class CarnetsService {
   private readonly logger = new Logger(CarnetsService.name);
@@ -27,6 +37,7 @@ export class CarnetsService {
     private readonly repository: RepositoryService,
     private readonly mail: MailService,
     private readonly push: PushService,
+    private readonly cache: CacheService,
   ) {}
 
   async create(dto: CreateCarnetDto) {
@@ -146,7 +157,21 @@ export class CarnetsService {
    * deux fois parmi tous les donneurs inscrits) et taux de rétention (donneurs inscrits depuis
    * plus de `joursPeriode` jours ayant eu une activité récente sur la plateforme).
    */
-  async statistiquesFidelisation(joursPeriode = 90) {
+  async statistiquesFidelisation(
+    joursPeriode = 90,
+  ): Promise<StatistiquesFidelisation> {
+    const cle = `stats:fidelisation:${joursPeriode}`;
+    const enCache = await this.cache.get<StatistiquesFidelisation>(cle);
+    if (enCache) return enCache;
+
+    const resultat = await this.calculerStatistiquesFidelisation(joursPeriode);
+    await this.cache.set(cle, resultat, 300);
+    return resultat;
+  }
+
+  private async calculerStatistiquesFidelisation(
+    joursPeriode: number,
+  ): Promise<StatistiquesFidelisation> {
     const [totalDonneurs, dons, donneursAnciens] = await Promise.all([
       this.repository.utilisateur.count({ where: { role: 'DONNEUR' } }),
       this.repository.carnetDigital.groupBy({
