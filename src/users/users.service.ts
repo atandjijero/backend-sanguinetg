@@ -132,6 +132,17 @@ export class UsersService {
     });
   }
 
+  async removeDonneur(id: string) {
+    const utilisateur = await this.getOrThrow(id);
+    if (utilisateur.role !== Role.DONNEUR) {
+      throw new ForbiddenException(
+        'Seuls les comptes donneurs peuvent être supprimés depuis cet endpoint.',
+      );
+    }
+    await this.repository.utilisateur.delete({ where: { id } });
+    return { message: 'Donneur supprimé' };
+  }
+
   private async getOrThrow(id: string) {
     const utilisateur = await this.repository.utilisateur.findUnique({
       where: { id },

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -69,5 +69,13 @@ export class UsersController {
   @ApiOperation({ summary: 'Activation / désactivation d\'un compte (admin uniquement)' })
   updateStatut(@Param('id') id: string, @Body() dto: UpdateStatutDto) {
     return this.usersService.updateStatut(id, dto);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @Delete(':id')
+  @ApiOperation({ summary: "Suppression d'un compte donneur (superadmin uniquement)" })
+  removeDonneur(@Param('id') id: string) {
+    return this.usersService.removeDonneur(id);
   }
 }
