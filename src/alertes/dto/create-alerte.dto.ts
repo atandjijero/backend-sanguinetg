@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { GroupeSanguin } from '@prisma/client';
-import { ArrayMinSize, ArrayUnique, IsArray, IsEnum, IsNumber, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
+import { ArrayMinSize, ArrayUnique, IsArray, IsEnum, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsPositiveIntegerRecord } from '../../common/validators/positive-integer-record.decorator';
 
 export class CreateAlerteDto {
   @ApiProperty({
@@ -46,6 +47,8 @@ export class CreateAlerteDto {
       'Nombre maximum de donneurs à notifier, par quartier ciblé (clé = quartierId). Priorité aux donneurs les plus proches du centre sélectionné le plus proche. Omis = tous les donneurs compatibles de ce quartier.',
   })
   @IsOptional()
-  @IsObject()
+  @IsPositiveIntegerRecord({
+    message: 'nombreDonneursMaxParQuartier doit être un objet dont chaque valeur est un entier >= 1',
+  })
   nombreDonneursMaxParQuartier?: Record<string, number>;
 }

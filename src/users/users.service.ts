@@ -77,12 +77,15 @@ export class UsersService {
     return { message: 'Mot de passe mis à jour' };
   }
 
-  async findAll(query: FindUsersQuery) {
+  async findAll(query: FindUsersQuery, demandePar: { role: Role }) {
     return this.repository.utilisateur.findMany({
       where: {
         role: query.role,
         groupeSanguin: query.groupeSanguin,
         quartierId: query.quartierId,
+        // Un ADMIN/AGENT_CNTS ne doit jamais voir les comptes SUPERADMIN dans la liste,
+        // même s'il filtre explicitement dessus.
+        ...(demandePar.role !== Role.SUPERADMIN ? { NOT: { role: Role.SUPERADMIN } } : {}),
       },
       select: PUBLIC_USER_SELECT,
       orderBy: { createdAt: 'desc' },

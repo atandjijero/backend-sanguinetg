@@ -8,6 +8,7 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.interfa
 import { CarnetsService } from './carnets.service';
 import { CreateCarnetDto } from './dto/create-carnet.dto';
 import { FindCarnetsQuery } from './dto/find-carnets.query';
+import { StatistiquesFidelisationQuery } from './dto/statistiques-fidelisation.query';
 import { UpdateCarnetDto } from './dto/update-carnet.dto';
 
 @ApiTags('carnets')
@@ -30,8 +31,8 @@ export class CarnetsController {
   @ApiOperation({
     summary: 'Indicateurs de fidélisation (H2) : taux de dons répétés et taux de rétention des donneurs',
   })
-  statistiquesFidelisation(@Query('joursPeriode') joursPeriode?: string) {
-    return this.carnetsService.statistiquesFidelisation(joursPeriode ? Number(joursPeriode) : undefined);
+  statistiquesFidelisation(@Query() query: StatistiquesFidelisationQuery) {
+    return this.carnetsService.statistiquesFidelisation(query.joursPeriode);
   }
 
   @Get()

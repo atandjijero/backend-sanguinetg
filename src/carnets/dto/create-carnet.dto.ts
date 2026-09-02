@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsNotFutureDate } from '../../common/validators/is-not-future-date.decorator';
 
 export class CreateCarnetDto {
   @ApiProperty({ description: 'Identifiant du donneur' })
@@ -8,6 +9,7 @@ export class CreateCarnetDto {
 
   @ApiProperty({ example: '2026-07-09' })
   @IsDateString()
+  @IsNotFutureDate({ message: 'La date du don ne peut pas être dans le futur' })
   dateDon: string;
 
   @ApiProperty({ description: 'Identifiant du centre de don' })

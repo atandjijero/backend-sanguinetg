@@ -39,9 +39,12 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.AGENT_CNTS)
   @Get()
-  @ApiOperation({ summary: 'Liste des utilisateurs (filtrable par rôle / groupe sanguin / quartier)' })
-  findAll(@Query() query: FindUsersQuery) {
-    return this.usersService.findAll(query);
+  @ApiOperation({
+    summary: 'Liste des utilisateurs (filtrable par rôle / groupe sanguin / quartier)',
+    description: 'Un ADMIN ne voit jamais les comptes SUPERADMIN dans la liste retournée.',
+  })
+  findAll(@Query() query: FindUsersQuery, @CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.findAll(query, user);
   }
 
   @UseGuards(RolesGuard)
