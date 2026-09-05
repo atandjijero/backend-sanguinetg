@@ -57,11 +57,21 @@ async function bootstrap() {
   // En plus du domaine de prod (FRONTEND_URL), on autorise les déploiements de
   // prévisualisation Vercel (une URL *.vercel.app différente par branche/PR) : leur
   // nombre est imprévisible, donc un simple motif regex plutôt qu'une liste figée.
+  // Hors production, on autorise aussi tout origin localhost/127.0.0.1 (quel que soit le
+  // port) : Vite change parfois de port automatiquement si 5371 est occupé, et ça évite
+  // de devoir resynchroniser FRONTEND_URL à chaque test en local.
   const frontendUrl = configService.get<string>('FRONTEND_URL');
+  const estProduction = configService.get<string>('NODE_ENV') === 'production';
   const vercelPreviewPattern = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
+  const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin || origin === frontendUrl || vercelPreviewPattern.test(origin)) {
+      const autorise =
+        !origin ||
+        origin === frontendUrl ||
+        vercelPreviewPattern.test(origin) ||
+        (!estProduction && localhostPattern.test(origin));
+      if (autorise) {
         callback(null, true);
       } else {
         callback(new Error('Origine non autorisée par CORS'));
