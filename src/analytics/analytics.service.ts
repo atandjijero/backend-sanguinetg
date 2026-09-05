@@ -1,11 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import type { Role } from '@prisma/client';
 import { RepositoryService } from '../repository/repository.service';
 import type { JwtPayload } from '../auth/types/authenticated-user.interface';
 import { HeartbeatDto } from './dto/heartbeat.dto';
 
 const SEUIL_EN_LIGNE_MS = 5 * 60 * 1000;
+const FENETRE_VU_RECEMMENT_MS = 7 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class AnalyticsService {
@@ -65,8 +67,13 @@ export class AnalyticsService {
     return sessions;
   }
 
+  /**
+   * Statut « en ligne / vu récemment » (façon WhatsApp) sur les 7 derniers jours. Le front
+   * détermine le libellé exact (« En ligne » vs « Vu le … ») à partir de derniereActivite ;
+   * ce endpoint fournit la donnée brute la plus récente par utilisateur.
+   */
   async connectes() {
-    const seuil = new Date(Date.now() - SEUIL_EN_LIGNE_MS);
+    const seuil = new Date(Date.now() - FENETRE_VU_RECEMMENT_MS);
 
     const sessions = await this.repository.sessionVisite.findMany({
       where: { derniereActivite: { gte: seuil }, utilisateurId: { not: null } },
@@ -77,7 +84,24 @@ export class AnalyticsService {
       },
     });
 
-    return sessions.map((s) => ({ ...s.utilisateur!, derniereActivite: s.derniereActivite }));
+    // Un même utilisateur peut avoir plusieurs sessions (appareils/onglets) sur la période ;
+    // la liste étant triée par date décroissante, la première rencontrée par utilisateur
+    // est forcément sa dernière activité connue.
+    const derniereActiviteParUtilisateur = new Map<
+      string,
+      { id: string; nom: string; prenom: string; role: Role; derniereActivite: Date }
+    >();
+    for (const s of sessions) {
+      const utilisateur = s.utilisateur!;
+      if (!derniereActiviteParUtilisateur.has(utilisateur.id)) {
+        derniereActiviteParUtilisateur.set(utilisateur.id, {
+          ...utilisateur,
+          derniereActivite: s.derniereActivite,
+        });
+      }
+    }
+
+    return [...derniereActiviteParUtilisateur.values()];
   }
 
   private extraireUtilisateurId(authHeader?: string): string | undefined {
