@@ -25,9 +25,16 @@ export class AnalyticsService {
     await this.repository.sessionVisite.upsert({
       where: { sessionId: dto.sessionId },
       create: { sessionId: dto.sessionId, utilisateurId },
-      // deconnecteA remis à null : une reprise d'activité (reconnexion sur le même appareil)
-      // annule le statut hors-ligne explicite posé par un précédent clic "Se déconnecter".
-      update: { derniereActivite: new Date(), utilisateurId, pagesVues: { increment: 1 }, deconnecteA: null },
+      update: {
+        derniereActivite: new Date(),
+        utilisateurId,
+        pagesVues: { increment: 1 },
+        // deconnecteA n'est remis à null que si CE heartbeat est authentifié (reconnexion
+        // réelle sur le même appareil) : sinon, le heartbeat anonyme déclenché par la
+        // redirection vers /connexion juste après un clic "Se déconnecter" effacerait
+        // aussitôt le statut hors-ligne qu'on vient de poser.
+        ...(utilisateurId ? { deconnecteA: null } : {}),
+      },
     });
 
     return { ok: true };
