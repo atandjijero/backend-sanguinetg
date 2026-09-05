@@ -136,6 +136,10 @@ model SessionVisite {
   premiereActivite DateTime     @default(now())
   derniereActivite DateTime     @default(now())
   pagesVues        Int          @default(1)
+  // Renseigné au clic "Se déconnecter" pour rendre le statut hors-ligne immédiat côté
+  // frontend, au lieu d'attendre l'expiration naturelle du seuil "en ligne" (5 min sans
+  // heartbeat). Remis à null dès que le heartbeat reprend (reconnexion sur le même appareil).
+  deconnecteA      DateTime?
 
   @@index([derniereActivite])
   @@map("sessions_visite")

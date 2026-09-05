@@ -5,6 +5,7 @@ import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AnalyticsService } from './analytics.service';
+import { DeconnexionDto } from './dto/deconnexion.dto';
 import { HeartbeatDto } from './dto/heartbeat.dto';
 
 @ApiTags('analytics')
@@ -20,6 +21,16 @@ export class AnalyticsController {
   })
   heartbeat(@Body() dto: HeartbeatDto, @Headers('authorization') authHeader?: string) {
     return this.analyticsService.heartbeat(dto, authHeader);
+  }
+
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('heartbeat/deconnexion')
+  @ApiOperation({
+    summary: 'Signale une déconnexion explicite pour un statut hors-ligne immédiat (public, best-effort)',
+  })
+  signalerDeconnexion(@Body() dto: DeconnexionDto) {
+    return this.analyticsService.signalerDeconnexion(dto.sessionId);
   }
 
   @ApiBearerAuth()

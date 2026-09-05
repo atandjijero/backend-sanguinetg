@@ -25,9 +25,20 @@ export class AnalyticsService {
     await this.repository.sessionVisite.upsert({
       where: { sessionId: dto.sessionId },
       create: { sessionId: dto.sessionId, utilisateurId },
-      update: { derniereActivite: new Date(), utilisateurId, pagesVues: { increment: 1 } },
+      // deconnecteA remis à null : une reprise d'activité (reconnexion sur le même appareil)
+      // annule le statut hors-ligne explicite posé par un précédent clic "Se déconnecter".
+      update: { derniereActivite: new Date(), utilisateurId, pagesVues: { increment: 1 }, deconnecteA: null },
     });
 
+    return { ok: true };
+  }
+
+  /** Marque la session comme explicitement déconnectée, pour un statut hors-ligne immédiat côté front. */
+  async signalerDeconnexion(sessionId: string) {
+    await this.repository.sessionVisite.updateMany({
+      where: { sessionId },
+      data: { deconnecteA: new Date() },
+    });
     return { ok: true };
   }
 
@@ -35,12 +46,12 @@ export class AnalyticsService {
     const seuil = new Date(Date.now() - SEUIL_EN_LIGNE_MS);
 
     const [enLigne, connectes, recents] = await Promise.all([
-      this.repository.sessionVisite.count({ where: { derniereActivite: { gte: seuil } } }),
+      this.repository.sessionVisite.count({ where: { derniereActivite: { gte: seuil }, deconnecteA: null } }),
       this.repository.sessionVisite.count({
-        where: { derniereActivite: { gte: seuil }, utilisateurId: { not: null } },
+        where: { derniereActivite: { gte: seuil }, deconnecteA: null, utilisateurId: { not: null } },
       }),
       this.repository.sessionVisite.findMany({
-        where: { derniereActivite: { gte: seuil }, utilisateurId: { not: null } },
+        where: { derniereActivite: { gte: seuil }, deconnecteA: null, utilisateurId: { not: null } },
         orderBy: { derniereActivite: 'desc' },
         take: 3,
         select: { utilisateur: { select: { id: true, nom: true, prenom: true } } },
@@ -68,18 +79,20 @@ export class AnalyticsService {
   }
 
   /**
-   * Statut « en ligne / vu récemment » (façon WhatsApp) sur les 7 derniers jours. Le front
-   * détermine le libellé exact (« En ligne » vs « Vu le … ») à partir de derniereActivite ;
-   * ce endpoint fournit la donnée brute la plus récente par utilisateur.
+   * Statut « en ligne / vu récemment » (façon WhatsApp) sur les 7 derniers jours. enLigne est
+   * calculé ici (pas côté front) car une déconnexion explicite (deconnecteA) doit basculer le
+   * statut immédiatement, même si derniereActivite reste dans le seuil des 5 dernières minutes.
    */
   async connectes() {
     const seuil = new Date(Date.now() - FENETRE_VU_RECEMMENT_MS);
+    const seuilEnLigne = new Date(Date.now() - SEUIL_EN_LIGNE_MS);
 
     const sessions = await this.repository.sessionVisite.findMany({
       where: { derniereActivite: { gte: seuil }, utilisateurId: { not: null } },
       orderBy: { derniereActivite: 'desc' },
       select: {
         derniereActivite: true,
+        deconnecteA: true,
         utilisateur: { select: { id: true, nom: true, prenom: true, role: true } },
       },
     });
@@ -87,21 +100,23 @@ export class AnalyticsService {
     // Un même utilisateur peut avoir plusieurs sessions (appareils/onglets) sur la période ;
     // la liste étant triée par date décroissante, la première rencontrée par utilisateur
     // est forcément sa dernière activité connue.
-    const derniereActiviteParUtilisateur = new Map<
+    const parUtilisateur = new Map<
       string,
-      { id: string; nom: string; prenom: string; role: Role; derniereActivite: Date }
+      { id: string; nom: string; prenom: string; role: Role; derniereActivite: Date; enLigne: boolean }
     >();
     for (const s of sessions) {
       const utilisateur = s.utilisateur!;
-      if (!derniereActiviteParUtilisateur.has(utilisateur.id)) {
-        derniereActiviteParUtilisateur.set(utilisateur.id, {
-          ...utilisateur,
-          derniereActivite: s.derniereActivite,
-        });
-      }
+      if (parUtilisateur.has(utilisateur.id)) continue;
+
+      const enLigne = !s.deconnecteA && s.derniereActivite >= seuilEnLigne;
+      parUtilisateur.set(utilisateur.id, {
+        ...utilisateur,
+        derniereActivite: s.deconnecteA ?? s.derniereActivite,
+        enLigne,
+      });
     }
 
-    return [...derniereActiviteParUtilisateur.values()];
+    return [...parUtilisateur.values()];
   }
 
   private extraireUtilisateurId(authHeader?: string): string | undefined {
