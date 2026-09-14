@@ -146,6 +146,32 @@ export class UsersService {
     return { message: 'Donneur supprimé' };
   }
 
+  async removeStaff(id: string, demandeurId: string) {
+    const utilisateur = await this.getOrThrow(id);
+    if (utilisateur.id === demandeurId) {
+      throw new ForbiddenException('Un SUPERADMIN ne peut pas supprimer son propre compte.');
+    }
+    if (
+      utilisateur.role !== Role.ADMIN &&
+      utilisateur.role !== Role.MEDECIN &&
+      utilisateur.role !== Role.AGENT_CNTS
+    ) {
+      throw new ForbiddenException('Seuls les membres de l’équipe CNTS peuvent être supprimés depuis cet endpoint.');
+    }
+
+    try {
+      await this.repository.utilisateur.delete({ where: { id } });
+      return { message: 'Membre de l’équipe CNTS supprimé' };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new ConflictException(
+          'Ce membre est encore lié à des données métier et ne peut pas être supprimé. Désactivez plutôt son compte.',
+        );
+      }
+      throw error;
+    }
+  }
+
   private async getOrThrow(id: string) {
     const utilisateur = await this.repository.utilisateur.findUnique({
       where: { id },

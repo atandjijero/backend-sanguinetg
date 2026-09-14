@@ -76,6 +76,14 @@ export class UsersController {
 
   @UseGuards(RolesGuard)
   @Roles(Role.SUPERADMIN)
+  @Delete('staff/:id')
+  @ApiOperation({ summary: "Suppression d'un membre de l'équipe CNTS (superadmin uniquement)" })
+  removeStaff(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.removeStaff(id, user.id);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPERADMIN)
   @Delete(':id')
   @ApiOperation({ summary: "Suppression d'un compte donneur (superadmin uniquement)" })
   removeDonneur(@Param('id') id: string) {

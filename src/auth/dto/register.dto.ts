@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { GroupeSanguin } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import {
   Equals,
   IsBoolean,
@@ -15,22 +16,33 @@ import { Match } from '../../common/validators/match.decorator';
 
 export class RegisterDto {
   @ApiProperty({ example: 'Atandji' })
+    @Transform(({ value }) => (value === undefined ? undefined : typeof value === 'string' ? value.trim().toLocaleUpperCase('fr-FR') : Number.NaN))
   @IsString()
+  @Matches(/^(?=.*\p{L})[\p{L} .'-]+$/u, {
+    message: 'Le nom doit contenir uniquement des lettres, espaces, apostrophes ou tirets',
+  })
   @MinLength(2)
   @MaxLength(80)
   nom: string;
 
   @ApiProperty({ example: 'Jérôme' })
+    @Transform(({ value }) => (value === undefined ? undefined : typeof value === 'string' ? value.trim().toLocaleLowerCase('fr-FR') : Number.NaN))
   @IsString()
+  @Matches(/^(?=.*\p{L})[\p{L} .'-]+$/u, {
+    message: 'Le prénom doit contenir uniquement des lettres, espaces, apostrophes ou tirets',
+  })
   @MinLength(2)
   @MaxLength(80)
   prenom: string;
 
   @ApiProperty({ example: 'donneur@example.com' })
+  @Transform(({ value }) => (value === undefined ? undefined : typeof value === 'string' ? value : Number.NaN))
   @IsEmail()
   email: string;
 
   @ApiProperty({ example: '+22890123456' })
+  @Transform(({ value }) => (value === undefined ? undefined : typeof value === 'string' ? value : Number.NaN))
+  @IsString()
   @Matches(/^(\+228)?[0-9]{8}$/, {
     message:
       'Le numéro de téléphone doit être un numéro togolais valide (8 chiffres, préfixe +228 optionnel)',
@@ -38,6 +50,7 @@ export class RegisterDto {
   telephone: string;
 
   @ApiProperty({ example: 'MotDePasse2024', minLength: 8 })
+  @Transform(({ value }) => (value === undefined ? undefined : typeof value === 'string' ? value : Number.NaN))
   @IsString()
   @MinLength(8)
   @MaxLength(72)
@@ -47,6 +60,7 @@ export class RegisterDto {
   motDePasse: string;
 
   @ApiProperty({ example: 'MotDePasse2024' })
+  @Transform(({ value }) => (value === undefined ? undefined : typeof value === 'string' ? value : Number.NaN))
   @IsString()
   @Match('motDePasse', {
     message: 'La confirmation ne correspond pas au mot de passe',
@@ -59,6 +73,7 @@ export class RegisterDto {
   groupeSanguin?: GroupeSanguin;
 
   @ApiPropertyOptional({ description: 'Identifiant du quartier (Lomé)' })
+  @Transform(({ value }) => (value === undefined ? undefined : typeof value === 'string' ? value : Number.NaN))
   @IsOptional()
   @IsString()
   quartierId?: string;
