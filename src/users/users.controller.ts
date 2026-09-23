@@ -8,6 +8,7 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user.interfa
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { FindUsersQuery } from './dto/find-users.query';
+import { RemoveStaffDto } from './dto/remove-staff.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateStatutDto } from './dto/update-statut.dto';
 import { UsersService } from './users.service';
@@ -78,8 +79,8 @@ export class UsersController {
   @Roles(Role.SUPERADMIN)
   @Delete('staff/:id')
   @ApiOperation({ summary: "Suppression d'un membre de l'équipe CNTS (superadmin uniquement)" })
-  removeStaff(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.removeStaff(id, user.id);
+  removeStaff(@Param('id') id: string, @Body() dto: RemoveStaffDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.removeStaff(id, user.id, dto);
   }
 
   @UseGuards(RolesGuard)

@@ -237,7 +237,7 @@ model Alerte {
   statut              StatutAlerte  @default(OUVERTE)
 
   creeParId String
-  creePar   Utilisateur @relation("AlertesCreeesParAgent", fields: [creeParId], references: [id])
+  creePar   Utilisateur @relation("AlertesCreeesParAgent", fields: [creeParId], references: [id], onDelete: Cascade)
 
   reponses      Reponse[]
   notifications Notification[]
@@ -344,7 +344,7 @@ model ConseilSante {
   datePublication DateTime         @default(now())
 
   valideParId String
-  validePar   Utilisateur @relation("ConseilsValidesParMedecin", fields: [valideParId], references: [id])
+  validePar   Utilisateur @relation("ConseilsValidesParMedecin", fields: [valideParId], references: [id], onDelete: Cascade)
 
   @@index([categorie])
   @@index([valideParId])
@@ -424,6 +424,20 @@ model MessageContact {
 
   @@index([statut])
   @@map("messages_contact")
+}
+
+model StaffSuppression {
+  id              String   @id @default(cuid())
+  utilisateurId   String
+  utilisateurNom  String
+  utilisateurRole Role
+  supprimeParId   String
+  raison          String
+  dateSuppression DateTime @default(now())
+
+  @@index([utilisateurId])
+  @@index([supprimeParId])
+  @@map("staff_suppressions")
 }
 
 //ABONNÉS À LA NEWSLETTER (popup du site public)

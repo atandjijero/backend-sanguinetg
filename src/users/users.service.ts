@@ -12,6 +12,7 @@ import { RepositoryService } from '../repository/repository.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { FindUsersQuery } from './dto/find-users.query';
+import { RemoveStaffDto } from './dto/remove-staff.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateStatutDto } from './dto/update-statut.dto';
 
@@ -146,7 +147,7 @@ export class UsersService {
     return { message: 'Donneur supprimé' };
   }
 
-  async removeStaff(id: string, demandeurId: string) {
+  async removeStaff(id: string, demandeurId: string, dto: RemoveStaffDto) {
     const utilisateur = await this.getOrThrow(id);
     if (utilisateur.id === demandeurId) {
       throw new ForbiddenException('Un SUPERADMIN ne peut pas supprimer son propre compte.');
@@ -159,17 +160,19 @@ export class UsersService {
       throw new ForbiddenException('Seuls les membres de l’équipe CNTS peuvent être supprimés depuis cet endpoint.');
     }
 
-    try {
-      await this.repository.utilisateur.delete({ where: { id } });
-      return { message: 'Membre de l’équipe CNTS supprimé' };
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-        throw new ConflictException(
-          'Ce membre est encore lié à des données métier et ne peut pas être supprimé. Désactivez plutôt son compte.',
-        );
-      }
-      throw error;
-    }
+    await this.repository.$transaction(async (transaction) => {
+      await transaction.staffSuppression.create({
+        data: {
+          utilisateurId: utilisateur.id,
+          utilisateurNom: `${utilisateur.prenom} ${utilisateur.nom}`,
+          utilisateurRole: utilisateur.role,
+          supprimeParId: demandeurId,
+          raison: dto.raison.trim(),
+        },
+      });
+      await transaction.utilisateur.delete({ where: { id } });
+    });
+    return { message: 'Membre de l’équipe CNTS supprimé' };
   }
 
   private async getOrThrow(id: string) {
