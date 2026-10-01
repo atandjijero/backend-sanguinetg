@@ -21,6 +21,8 @@ import { TraductionModule } from './traduction/traduction.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
 import { AvisModule } from './avis/avis.module';
 import { MessagerieModule } from './messagerie/messagerie.module';
+import { HistoriqueModule } from './historique/historique.module';
+import { HistoriqueInterceptor } from './historique/historique.interceptor';
 import { PushModule } from './common/push/push.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { FrenchThrottlerGuard } from './common/guards/french-throttler.guard';
@@ -60,11 +62,13 @@ import { AppController } from './app.controller';
     PushModule,
     AvisModule,
     MessagerieModule,
+    HistoriqueModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: FrenchThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_INTERCEPTOR, useClass: ThreatDetectionInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: HistoriqueInterceptor },
   ],
 })
 export class AppModule {}

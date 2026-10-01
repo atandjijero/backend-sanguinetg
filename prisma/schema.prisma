@@ -213,6 +213,7 @@ model Utilisateur {
   conseilsValides ConseilSante[] @relation("ConseilsValidesParMedecin")
 
   sessionsVisite SessionVisite[]
+  journalActivites JournalActivite[]
 
   avis AvisDonneur?
 
@@ -462,4 +463,28 @@ model ImageAccueil {
   dateMiseAJour DateTime @updatedAt
 
   @@map("images_accueil")
+}
+
+model JournalActivite {
+  id             String       @id @default(cuid())
+  utilisateurId  String?
+  utilisateur    Utilisateur? @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
+  utilisateurNom String?
+  role           Role?
+  action         String
+  description    String?
+  methode        String
+  route          String
+  cible          String?
+  succes         Boolean
+  codeHttp       Int
+  ip             String?
+  userAgent      String?
+  details        Json?
+  dateCreation   DateTime     @default(now())
+
+  @@index([dateCreation])
+  @@index([role, dateCreation])
+  @@index([utilisateurId, dateCreation])
+  @@map("journal_activites")
 }
