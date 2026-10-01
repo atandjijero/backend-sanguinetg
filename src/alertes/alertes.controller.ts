@@ -52,6 +52,16 @@ export class AlertesController {
     return this.alertesService.statistiquesMobilisation();
   }
 
+  @UseGuards(RolesGuard)
+  @Roles(Role.AGENT_CNTS, Role.ADMIN, Role.MEDECIN)
+  @Get('donneurs/:donneurId/reponses-en-attente')
+  @ApiOperation({
+    summary: "Réponses « Je viens » d'un donneur pas encore reliées à un don (pour pré-remplir l'enregistrement du don)",
+  })
+  findReponsesEnAttente(@Param('donneurId') donneurId: string) {
+    return this.alertesService.findReponsesEnAttente(donneurId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: "Détail d'une alerte" })
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {

@@ -497,6 +497,33 @@ export class AlertesService {
     return { message: 'Alerte supprimée' };
   }
 
+  findReponsesEnAttente(donneurId: string) {
+    return this.repository.reponse.findMany({
+      where: {
+        donneurId,
+        statut: 'JE_VIENS',
+        carnet: { is: null },
+      },
+      select: {
+        id: true,
+        dateReponse: true,
+        alerte: {
+          select: {
+            id: true,
+            statut: true,
+            dateCreation: true,
+            groupeSanguinRequis: true,
+            centreDonId: true,
+            centreDon: { select: { id: true, nom: true } },
+            quartier: { select: { nom: true } },
+          },
+        },
+      },
+      orderBy: { dateReponse: 'desc' },
+      take: 5,
+    });
+  }
+
   private async getOrThrow(id: string) {
     const alerte = await this.repository.alerte.findUnique({ where: { id } });
     if (!alerte) {

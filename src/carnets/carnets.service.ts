@@ -48,6 +48,18 @@ export class CarnetsService {
             DELAI_MINIMAL_ENTRE_DONS_JOURS * 24 * 60 * 60 * 1000,
         );
 
+    if (dto.reponseId) {
+      const reponse = await this.repository.reponse.findUnique({
+        where: { id: dto.reponseId },
+        select: { donneurId: true },
+      });
+      if (!reponse || reponse.donneurId !== dto.donneurId) {
+        throw new BadRequestException(
+          "La réponse à l'alerte sélectionnée ne correspond pas à ce donneur.",
+        );
+      }
+    }
+
     await this.verifierDelaiReglementaire(dto.donneurId, dateDon);
 
     try {
