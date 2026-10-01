@@ -75,7 +75,7 @@ export class HistoriqueService {
 
   async findAll(query: FindHistoriqueQuery, demandeur: { role: Role }) {
     const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
+    const pageSize = query.pageSize ?? 10;
 
     const filtreRole: Prisma.JournalActiviteWhereInput =
       demandeur.role === Role.SUPERADMIN
