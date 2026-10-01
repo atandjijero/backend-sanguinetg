@@ -11,10 +11,6 @@ interface NominatimResult {
   importance?: number;
 }
 
-/**
- * Géocodage best-effort via Nominatim (OpenStreetMap), borné à Lomé/Togo.
- * Échec silencieux (retourne null) : les coordonnées restent alors éditables manuellement.
- */
 @Injectable()
 export class GeocodingService {
   private readonly logger = new Logger(GeocodingService.name);

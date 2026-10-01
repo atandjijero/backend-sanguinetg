@@ -17,7 +17,6 @@ import { FindCarnetsQuery } from './dto/find-carnets.query';
 import { UpdateCarnetDto } from './dto/update-carnet.dto';
 
 const DELAI_MINIMAL_ENTRE_DONS_JOURS = 90;
-/** Le rappel est envoyé quelques jours avant la date d'éligibilité, pour laisser au donneur le temps de s'organiser. */
 const ANTICIPATION_RAPPEL_JOURS = 3;
 
 export interface StatistiquesFidelisation {
@@ -68,11 +67,6 @@ export class CarnetsService {
     }
   }
 
-  /**
-   * Délai réglementaire CNTS : 90 jours minimum entre deux dons de sang total pour un même
-   * donneur. Vérifie l'écart avec le don précédent et le don suivant (cas d'une saisie
-   * rétroactive hors ordre chronologique) pour empêcher tout doublon rapproché.
-   */
   private async verifierDelaiReglementaire(donneurId: string, dateDon: Date) {
     const delaiMs = DELAI_MINIMAL_ENTRE_DONS_JOURS * 24 * 60 * 60 * 1000;
 
@@ -152,11 +146,6 @@ export class CarnetsService {
     }
   }
 
-  /**
-   * Indicateurs H2 (mémoire, tableau 2) : taux de dons répétés (donneurs ayant donné au moins
-   * deux fois parmi tous les donneurs inscrits) et taux de rétention (donneurs inscrits depuis
-   * plus de `joursPeriode` jours ayant eu une activité récente sur la plateforme).
-   */
   async statistiquesFidelisation(
     joursPeriode = 90,
   ): Promise<StatistiquesFidelisation> {
@@ -223,11 +212,6 @@ export class CarnetsService {
     };
   }
 
-  /**
-   * Rappelle (email + push) aux donneurs actifs dont la date de prochaine éligibilité au don
-   * approche (ou est dépassée) et qui n'ont pas encore reçu ce rappel — un seul envoi par
-   * carnet, marqué via `rappelEnvoye` pour ne jamais redéranger deux fois pour la même date.
-   */
   @Cron(CronExpression.EVERY_DAY_AT_8AM)
   async envoyerRappelsProchainDon() {
     const seuil = new Date(

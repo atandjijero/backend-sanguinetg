@@ -15,11 +15,6 @@ interface EnvoiPush {
   badgeCount?: number;
 }
 
-/**
- * Envoi de notifications push (Web Push / VAPID) best-effort : si les clés VAPID ne sont
- * pas configurées, l'envoi est journalisé et ignoré, comme MailService — la
- * mobilisation d'un donneur ne doit jamais dépendre de cette configuration optionnelle.
- */
 @Injectable()
 export class PushService {
   private readonly logger = new Logger(PushService.name);
@@ -66,7 +61,6 @@ export class PushService {
     return { message: 'Désabonnement effectué' };
   }
 
-  /** Envoie à tous les appareils abonnés d'un donneur ; retire silencieusement les abonnements expirés/invalides (410/404). */
   async envoyerA(donneurId: string, payload: EnvoiPush): Promise<boolean> {
     if (!this.configured) {
       this.logger.warn(`VAPID non configuré : push à "${donneurId}" non envoyé.`);

@@ -8,7 +8,6 @@ const AUTEUR_SELECT = {
   auteur: { select: { id: true, nom: true, prenom: true, role: true } },
 } as const;
 
-/** Fenêtre au-delà de laquelle un message ne peut plus être modifié (façon WhatsApp). */
 const DELAI_MODIFICATION_MS = 15 * 60 * 1000;
 
 @Injectable()
@@ -18,7 +17,6 @@ export class MessagerieService {
     private readonly cloudinary: CloudinaryService,
   ) {}
 
-  /** Un donneur n'a qu'une seule conversation, créée paresseusement à son premier message. */
   async getOrCreateConversation(donneurId: string) {
     return this.repository.conversation.upsert({
       where: { donneurId },
@@ -27,11 +25,6 @@ export class MessagerieService {
     });
   }
 
-  /**
-   * Résout la conversation concernée par un indicateur de frappe (« X est en train d'écrire »),
-   * SANS en créer une — un simple événement de frappe ne doit pas faire apparaître une
-   * conversation vide dans la liste du staff avant qu'un premier message ait vraiment été envoyé.
-   */
   async trouverConversationPourFrappe(user: { id: string; role: Role }, conversationId?: string) {
     if (user.role === Role.DONNEUR) {
       const conversation = await this.repository.conversation.findUnique({ where: { donneurId: user.id } });
@@ -59,7 +52,6 @@ export class MessagerieService {
     return { conversation, messages };
   }
 
-  /** Vue « équipe médicale » : toutes les conversations, la plus récemment active en premier. */
   async listerConversations() {
     const conversations = await this.repository.conversation.findMany({
       include: {
@@ -103,11 +95,6 @@ export class MessagerieService {
     return { conversation, messages };
   }
 
-  /**
-   * Un donneur écrit dans sa propre conversation (créée si besoin) ; un membre du staff doit
-   * préciser quelle conversation (quel donneur) il vise, et seul un médecin peut y répondre —
-   * le reste du staff garde un accès en lecture seule pour la supervision.
-   */
   async envoyerMessage(auteur: { id: string; role: Role }, dto: EnvoyerMessageDto) {
     const contenu = dto.contenu.trim();
     if (!contenu) {
@@ -143,12 +130,6 @@ export class MessagerieService {
     return { message, donneurId: conversation.donneurId, conversationId: conversation.id };
   }
 
-  /**
-   * Un donneur écrit dans sa propre conversation (créée si besoin) ; un membre du staff doit
-   * préciser quelle conversation (quel donneur) il vise, et seul un médecin peut y répondre.
-   * Même règles d'accès que `envoyerMessage`, pour un enregistrement vocal envoyé via l'upload
-   * REST plutôt que par le WebSocket (qui ne gère pas les fichiers binaires).
-   */
   async envoyerMessageVocal(
     auteur: { id: string; role: Role },
     buffer: Buffer,
@@ -194,7 +175,6 @@ export class MessagerieService {
     return { message, donneurId: conversation.donneurId, conversationId: conversation.id };
   }
 
-  /** Seul l'auteur peut modifier son message, et seulement dans les 15 minutes suivant l'envoi. */
   async modifierMessage(auteur: { id: string; role: Role }, messageId: string, contenuBrut: string) {
     const message = await this.getMessageOuThrow(messageId);
 
@@ -225,7 +205,6 @@ export class MessagerieService {
     return { message: messageModifie, donneurId: message.conversation.donneurId };
   }
 
-  /** Suppression « façon WhatsApp » : le message reste dans le fil sous forme d'un tombstone. */
   async supprimerMessage(auteur: { id: string; role: Role }, messageId: string) {
     const message = await this.getMessageOuThrow(messageId);
 

@@ -4,7 +4,6 @@ import {
   ValidationOptions,
 } from 'class-validator';
 
-/** Vérifie que le champ décoré est identique à un autre champ du même objet (ex: confirmation de mot de passe). */
 export function Match(property: string, validationOptions?: ValidationOptions) {
   return function (object: object, propertyName: string) {
     registerDecorator({

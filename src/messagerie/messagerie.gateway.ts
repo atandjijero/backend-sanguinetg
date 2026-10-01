@@ -25,12 +25,6 @@ interface SocketUser {
   role: Role;
 }
 
-/**
- * Salle unique « staff » pour l'équipe médicale/admin (vue de supervision en direct sur
- * toutes les conversations) ; chaque donneur a sa propre salle privée `donneur:{id}` — plus
- * simple qu'une salle par conversation, qui aurait exigé de faire rejoindre dynamiquement
- * tout médecin déjà connecté dès qu'un nouveau donneur écrit pour la première fois.
- */
 @WebSocketGateway({ cors: { origin: true, credentials: true }, namespace: '/messagerie' })
 export class MessagerieGateway implements OnGatewayInit, OnGatewayConnection {
   @WebSocketServer() server!: Server;
@@ -44,14 +38,6 @@ export class MessagerieGateway implements OnGatewayInit, OnGatewayConnection {
     private readonly configService: ConfigService,
   ) {}
 
-  /**
-   * Authentifie via un middleware de namespace plutôt que dans `handleConnection` : le
-   * middleware s'exécute pendant la poignée de main, AVANT que le client ne reçoive son
-   * événement `connect` — contrairement à `handleConnection`, qui tourne après coup et peut
-   * donc encore être « en cours » (lookup DB async) au moment où le client, déjà connecté de
-   * son point de vue, envoie son premier message. Sans ça, `client.data.user` peut être encore
-   * vide à ce moment-là (race condition constatée en test).
-   */
   afterInit(server: Server) {
     server.use(async (socket: Socket, next: (err?: Error) => void) => {
       try {
@@ -80,7 +66,6 @@ export class MessagerieGateway implements OnGatewayInit, OnGatewayConnection {
     });
   }
 
-  /** `socket.data.user` est garanti déjà posé ici : le middleware ci-dessus a tourné avant. */
   handleConnection(client: Socket) {
     const user = client.data.user as SocketUser;
     if (user.role === Role.DONNEUR) {
@@ -106,17 +91,10 @@ export class MessagerieGateway implements OnGatewayInit, OnGatewayConnection {
     }
   }
 
-  /** Utilisé par le contrôleur REST (repli) et par le gestionnaire WebSocket ci-dessus. */
   diffuserMessage(resultat: { message: unknown; donneurId: string }) {
     this.server.to(`donneur:${resultat.donneurId}`).to('staff').emit('nouveau_message', resultat.message);
   }
 
-  /**
-   * Modification/suppression répondent via l'accusé de réception socket.io (la valeur
-   * retournée par le handler) plutôt que par un événement séparé : l'action est déclenchée
-   * par un clic précis de l'utilisateur (bouton modifier/supprimer), qui attend un retour
-   * immédiat (succès/erreur) pour fermer son menu ou afficher un message d'erreur.
-   */
   @SubscribeMessage('modifier_message')
   async onModifierMessage(
     @ConnectedSocket() client: Socket,
@@ -148,17 +126,10 @@ export class MessagerieGateway implements OnGatewayInit, OnGatewayConnection {
     }
   }
 
-  /** Utilisé par le contrôleur REST (repli) et par les gestionnaires WebSocket ci-dessus. */
   diffuserMiseAJour(resultat: { message: unknown; donneurId: string }) {
     this.server.to(`donneur:${resultat.donneurId}`).to('staff').emit('message_mis_a_jour', resultat.message);
   }
 
-  /**
-   * Indicateur « X est en train d'écrire » : diffusé seulement à l'AUTRE côté (jamais à
-   * l'auteur lui-même, contrairement aux messages) — inutile de se notifier soi-même qu'on
-   * est en train d'écrire. Pas d'accusé de réception : un événement perdu n'est pas grave,
-   * contrairement à un message.
-   */
   @SubscribeMessage('typing_start')
   async onTypingStart(
     @ConnectedSocket() client: Socket,

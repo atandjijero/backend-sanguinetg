@@ -1,9 +1,5 @@
 import { GroupeSanguin } from '@prisma/client';
 
-/**
- * Groupes sanguins donneurs compatibles pour un groupe receveur donné
- * (compatibilité ABO + Rhésus standard, hors sous-groupes rares).
- */
 const COMPATIBLE_DONOR_GROUPS: Record<GroupeSanguin, GroupeSanguin[]> = {
   O_NEGATIF: ['O_NEGATIF'],
   O_POSITIF: ['O_NEGATIF', 'O_POSITIF'],
@@ -32,7 +28,6 @@ export function isDonneurCompatible(groupeDonneur: GroupeSanguin, groupeReceveur
   return COMPATIBLE_DONOR_GROUPS[groupeReceveur].includes(groupeDonneur);
 }
 
-/** Groupes receveurs auxquels un donneur donné peut donner (relation inverse). */
 export function getCompatibleRecipientGroups(groupeDonneur: GroupeSanguin): GroupeSanguin[] {
   return (Object.keys(COMPATIBLE_DONOR_GROUPS) as GroupeSanguin[]).filter((groupeReceveur) =>
     COMPATIBLE_DONOR_GROUPS[groupeReceveur].includes(groupeDonneur),

@@ -1,7 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsEnum, IsString, Matches, MaxLength, MinLength,IsNotEmpty } from 'class-validator';
+import { IsDateString, IsEmail, IsEnum, IsString, Matches, MaxLength, MinLength,IsNotEmpty } from 'class-validator';
+import { IsAgeEntre } from '../../common/validators/is-age-entre.decorator';
 
 const STAFF_ROLES = [Role.SUPERADMIN, Role.ADMIN, Role.MEDECIN, Role.AGENT_CNTS] as const;
 
@@ -27,6 +28,12 @@ export class CreateStaffDto {
   @MinLength(5,{message:'Le prénom doit avoir 5 caractère au minimun'})
   @MaxLength(80, {message:'Caractère maximun 80'})
   prenom: string;
+
+  @ApiProperty({ example: '1990-03-21', description: 'Date de naissance (AAAA-MM-JJ)' })
+  @IsNotEmpty({ message: 'La date de naissance est obligatoire' })
+  @IsDateString({}, { message: 'La date de naissance doit être une date valide' })
+  @IsAgeEntre(18, undefined, { message: 'Le membre du personnel doit avoir au moins 18 ans' })
+  dateNaissance: string;
 
   @ApiProperty()
   @Transform(({ value }) => (value === undefined ? undefined : typeof value === 'string' ? value : Number.NaN))

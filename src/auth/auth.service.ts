@@ -39,6 +39,7 @@ const PUBLIC_USER_SELECT = {
   statut: true,
   groupeSanguin: true,
   quartierId: true,
+  dateNaissance: true,
   dateInscription: true,
 } satisfies Prisma.UtilisateurSelect;
 
@@ -70,6 +71,7 @@ export class AuthService {
         data: {
           nom: dto.nom,
           prenom: dto.prenom,
+          dateNaissance: new Date(dto.dateNaissance),
           email: dto.email,
           telephone: dto.telephone,
           motDePasse: motDePasseHache,
@@ -231,11 +233,6 @@ export class AuthService {
     });
   }
 
-  /**
-   * Envoie un email de réinitialisation si un compte correspond à l'identifiant fourni.
-   * Réponse toujours identique en cas de succès ou d'échec silencieux, pour ne pas révéler
-   * si un email/téléphone est associé à un compte existant.
-   */
   async demanderReinitialisation(
     identifiant: string,
   ): Promise<{ message: string }> {

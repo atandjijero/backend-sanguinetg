@@ -9,10 +9,16 @@ import {
 import { Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { RepositoryService } from '../repository/repository.service';
+import {
+  AGE_MAX_DON,
+  AGE_MIN_DON,
+  calculerAge,
+} from '../common/validators/is-age-entre.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { FindUsersQuery } from './dto/find-users.query';
 import { RemoveStaffDto } from './dto/remove-staff.dto';
+import { UpdateGroupeSanguinDto } from './dto/update-groupe-sanguin.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateStatutDto } from './dto/update-statut.dto';
 
@@ -28,6 +34,7 @@ const PUBLIC_USER_SELECT = {
   statut: true,
   groupeSanguin: true,
   quartierId: true,
+  dateNaissance: true,
   dateInscription: true,
   createdAt: true,
 } satisfies Prisma.UtilisateurSelect;
@@ -41,11 +48,31 @@ export class UsersService {
   }
 
   async updateMe(id: string, dto: UpdateProfileDto) {
-    await this.getOrThrow(id);
+    const utilisateur = await this.getOrThrow(id);
+    const { dateNaissance, ...autresChamps } = dto;
+
+    if (
+      dateNaissance &&
+      utilisateur.role === Role.DONNEUR &&
+      calculerAge(new Date(dateNaissance)) > AGE_MAX_DON
+    ) {
+      throw new BadRequestException({
+        message: `Le don de sang est ouvert aux personnes de ${AGE_MIN_DON} à ${AGE_MAX_DON} ans`,
+        errors: {
+          dateNaissance: [
+            `Le don de sang est ouvert aux personnes de ${AGE_MIN_DON} à ${AGE_MAX_DON} ans`,
+          ],
+        },
+      });
+    }
+
     try {
       return await this.repository.utilisateur.update({
         where: { id },
-        data: dto,
+        data: {
+          ...autresChamps,
+          ...(dateNaissance && { dateNaissance: new Date(dateNaissance) }),
+        },
         select: PUBLIC_USER_SELECT,
       });
     } catch (error) {
@@ -81,7 +108,7 @@ export class UsersService {
   async findAll(query: FindUsersQuery, demandePar: { role: Role }) {
     return this.repository.utilisateur.findMany({
       where: {
-        role: query.role,
+        role: demandePar.role === Role.MEDECIN ? Role.DONNEUR : query.role,
         groupeSanguin: query.groupeSanguin,
         quartierId: query.quartierId,
         // Un ADMIN/AGENT_CNTS ne doit jamais voir les comptes SUPERADMIN dans la liste,
@@ -114,6 +141,7 @@ export class UsersService {
         data: {
           nom: dto.nom,
           prenom: dto.prenom,
+          dateNaissance: new Date(dto.dateNaissance),
           email: dto.email,
           telephone: dto.telephone,
           motDePasse: motDePasseHache,
@@ -132,6 +160,20 @@ export class UsersService {
     return this.repository.utilisateur.update({
       where: { id },
       data: { statut: dto.statut },
+      select: PUBLIC_USER_SELECT,
+    });
+  }
+
+  async updateGroupeSanguin(id: string, dto: UpdateGroupeSanguinDto) {
+    const utilisateur = await this.getOrThrow(id);
+    if (utilisateur.role !== Role.DONNEUR) {
+      throw new BadRequestException(
+        'Le groupe sanguin ne se renseigne que pour un compte donneur.',
+      );
+    }
+    return this.repository.utilisateur.update({
+      where: { id },
+      data: { groupeSanguin: dto.groupeSanguin },
       select: PUBLIC_USER_SELECT,
     });
   }

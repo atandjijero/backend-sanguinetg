@@ -5,7 +5,6 @@ const UNIT_TO_SECONDS: Record<string, number> = {
   d: 60 * 60 * 24,
 };
 
-/** Convertit une durée type "15m" / "7d" en nombre de secondes pour les options JWT. */
 export function durationToSeconds(value: string): number {
   const match = /^(\d+)([smhd])$/.exec(value.trim());
   if (!match) {

@@ -4,10 +4,6 @@ import { SecurityAlertsService } from './security-alerts.service';
 const SEUIL_TENTATIVES = 5;
 const FENETRE_MS = 5 * 60 * 1000;
 
-/**
- * Détection best-effort en mémoire (suffisante pour un pilote mono-instance).
- * Une vraie mise à l'échelle multi-instances nécessiterait un store partagé (Redis).
- */
 @Injectable()
 export class BruteForceDetectionService {
   private readonly tentatives = new Map<string, { count: number; premiereTentative: number }>();

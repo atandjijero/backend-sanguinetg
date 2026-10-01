@@ -11,14 +11,6 @@ interface EnvoiEmail {
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 const TIMEOUT_MS = 10_000;
 
-/**
- * Envoi d'email best-effort via l'API HTTP de Brevo (port 443). Utilisée à la place du
- * SMTP relay (port 587/465) car ce dernier subit des timeouts de connexion sortante sur
- * Render — l'API HTTPS, elle, n'est jamais bloquée par ce type d'hébergeur.
- * Si BREVO_API_KEY n'est pas configurée, l'envoi est simplement journalisé et ignoré : la
- * fonctionnalité qui déclenche l'email (réponse à un message de contact, alerte) doit
- * rester utilisable même sans configuration Brevo.
- */
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);

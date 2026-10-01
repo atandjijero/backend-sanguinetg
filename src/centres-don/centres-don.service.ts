@@ -69,11 +69,6 @@ export class CentresDonService {
     }
   }
 
-  /**
-   * Résout les coordonnées d'un centre : valeurs fournies explicitement > géocodage
-   * précis (nom + quartier) > coordonnées du quartier de rattachement en repli, puisque
-   * le géocodage échoue souvent sur un nom de centre trop spécifique/inexistant sur la carte.
-   */
   private async resoudreCoordonnees(
     nom: string,
     quartierId: string | null | undefined,

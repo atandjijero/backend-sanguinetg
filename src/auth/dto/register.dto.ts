@@ -4,8 +4,10 @@ import { Transform } from 'class-transformer';
 import {
   Equals,
   IsBoolean,
+  IsDateString,
   IsEmail,
   IsEnum,
+  IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
@@ -13,6 +15,11 @@ import {
   MinLength,
 } from 'class-validator';
 import { Match } from '../../common/validators/match.decorator';
+import {
+  AGE_MAX_DON,
+  AGE_MIN_DON,
+  IsAgeEntre,
+} from '../../common/validators/is-age-entre.decorator';
 
 export class RegisterDto {
   @ApiProperty({ example: 'Atandji' })
@@ -34,6 +41,14 @@ export class RegisterDto {
   @MinLength(2)
   @MaxLength(80)
   prenom: string;
+
+  @ApiProperty({ example: '1998-05-14', description: 'Date de naissance (AAAA-MM-JJ), âge légal du don : 18 à 65 ans' })
+  @IsNotEmpty({ message: 'La date de naissance est obligatoire' })
+  @IsDateString({}, { message: 'La date de naissance doit être une date valide' })
+  @IsAgeEntre(AGE_MIN_DON, AGE_MAX_DON, {
+    message: `Le don de sang est ouvert aux personnes de ${AGE_MIN_DON} à ${AGE_MAX_DON} ans`,
+  })
+  dateNaissance: string;
 
   @ApiProperty({ example: 'donneur@example.com' })
   @Transform(({ value }) => (value === undefined ? undefined : typeof value === 'string' ? value : Number.NaN))

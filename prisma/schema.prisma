@@ -182,6 +182,7 @@ model Utilisateur {
   id         String            @id @default(cuid())
   nom        String
   prenom     String
+  dateNaissance DateTime?       @db.Date
   email      String?           @unique
   telephone  String?           @unique
   motDePasse String?

@@ -5,12 +5,6 @@ interface DeepLResponse {
   translations: { text: string }[];
 }
 
-/**
- * Traduction via l'API DeepL, avec un cache en mémoire pour éviter de retraduire (et
- * refacturer) un texte déjà rencontré depuis le démarrage du serveur. Le frontend reste
- * seul responsable de la langue active et de l'affichage : ce service ne fait que relayer
- * l'appel à DeepL, qui nécessite une clé secrète non exposable au navigateur.
- */
 @Injectable()
 export class TraductionService {
   private readonly logger = new Logger(TraductionService.name);

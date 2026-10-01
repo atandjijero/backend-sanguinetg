@@ -9,6 +9,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { FindUsersQuery } from './dto/find-users.query';
 import { RemoveStaffDto } from './dto/remove-staff.dto';
+import { UpdateGroupeSanguinDto } from './dto/update-groupe-sanguin.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateStatutDto } from './dto/update-statut.dto';
 import { UsersService } from './users.service';
@@ -38,11 +39,12 @@ export class UsersController {
   }
 
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.AGENT_CNTS)
+  @Roles(Role.ADMIN, Role.AGENT_CNTS, Role.MEDECIN)
   @Get()
   @ApiOperation({
     summary: 'Liste des utilisateurs (filtrable par rôle / groupe sanguin / quartier)',
-    description: 'Un ADMIN ne voit jamais les comptes SUPERADMIN dans la liste retournée.',
+    description:
+      'Un ADMIN ne voit jamais les comptes SUPERADMIN dans la liste retournée. Un MEDECIN ne voit que les donneurs.',
   })
   findAll(@Query() query: FindUsersQuery, @CurrentUser() user: AuthenticatedUser) {
     return this.usersService.findAll(query, user);
@@ -73,6 +75,17 @@ export class UsersController {
   @ApiOperation({ summary: 'Activation / désactivation d\'un compte (admin uniquement)' })
   updateStatut(@Param('id') id: string, @Body() dto: UpdateStatutDto) {
     return this.usersService.updateStatut(id, dto);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.AGENT_CNTS, Role.MEDECIN)
+  @Patch(':id/groupe-sanguin')
+  @ApiOperation({
+    summary: "Renseignement / correction du groupe sanguin d'un donneur (personnel CNTS)",
+    description: "Le donneur ne peut pas modifier lui-même son groupe sanguin, qui détermine le ciblage des alertes.",
+  })
+  updateGroupeSanguin(@Param('id') id: string, @Body() dto: UpdateGroupeSanguinDto) {
+    return this.usersService.updateGroupeSanguin(id, dto);
   }
 
   @UseGuards(RolesGuard)

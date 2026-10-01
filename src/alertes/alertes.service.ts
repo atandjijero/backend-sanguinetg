@@ -53,7 +53,6 @@ const ALERTE_INCLUDE = {
   creePar: { select: { id: true, nom: true, prenom: true } },
 } satisfies Prisma.AlerteInclude;
 
-/** Délai au-delà duquel une alerte OUVERTE sans aucune réponse se ferme automatiquement. */
 const DELAI_AUTO_FERMETURE_MS = 60 * 60 * 1000;
 
 @Injectable()
@@ -204,12 +203,6 @@ export class AlertesService {
     });
   }
 
-  /**
-   * Un donneur ne voit que les alertes pour lesquelles il a réellement été notifié (table
-   * Notification, remplie par `notifierDonneurs`) — et non un recalcul indépendant par
-   * groupe/quartier, qui désynchronisait cette liste du plafond `nombreDonneursMaxParQuartier`
-   * et du statut ACTIF réellement appliqués au moment du ciblage.
-   */
   private async findAllPourDonneur(donneurId: string) {
     const alertes = await this.repository.alerte.findMany({
       where: {
@@ -237,10 +230,6 @@ export class AlertesService {
     }));
   }
 
-  /**
-   * Indicateurs H1 (mémoire, tableau 1) : délai moyen entre le lancement d'une alerte et les
-   * réponses « Je viens », et taux d'alertes ayant obtenu une première réponse en moins d'une heure.
-   */
   async statistiquesMobilisation(): Promise<StatistiquesMobilisation> {
     const cle = 'stats:mobilisation';
     const enCache = await this.cache.get<StatistiquesMobilisation>(cle);
@@ -307,7 +296,6 @@ export class AlertesService {
         nombreAlertes > 0
           ? Math.round((nombreReponses / nombreAlertes) * 10) / 10
           : null,
-      /** Indicateur H1 : nombre moyen de donneurs compatibles mobilisés (« Je viens ») dans l'heure suivant le lancement d'un appel. */
       donneursMobilisesUneHeure:
         nombreAlertes > 0
           ? Math.round((sommeReponsesUneHeure / nombreAlertes) * 10) / 10
@@ -361,12 +349,6 @@ export class AlertesService {
     });
   }
 
-  /**
-   * Ferme automatiquement les alertes OUVERTE depuis plus d'une heure et n'ayant reçu
-   * aucune réponse (ni « Je viens » ni « Indisponible ») — au-delà de ce délai, l'alerte
-   * est considérée comme sans retour et libère la visibilité du dashboard pour les
-   * alertes réellement actives. Le CNTS garde la main via le bouton « Relancer ».
-   */
   @Cron(CronExpression.EVERY_10_MINUTES)
   async fermerAlertesExpirees() {
     const seuil = new Date(Date.now() - DELAI_AUTO_FERMETURE_MS);
@@ -386,11 +368,6 @@ export class AlertesService {
     return count;
   }
 
-  /**
-   * Rouvre une alerte fermée et renotifie (email + push) uniquement les donneurs déjà
-   * ciblés qui n'ont pas encore répondu — inutile de redéranger ceux qui ont déjà dit
-   * « Je viens » ou « Indisponible ».
-   */
   async relancer(id: string, user: AuthenticatedUser) {
     if (user.role === Role.SUPERADMIN) {
       throw new ForbiddenException(
@@ -652,13 +629,11 @@ export class AlertesService {
     return payload;
   }
 
-  /** Répond à une alerte depuis le lien cliqué dans l'email, sans connexion préalable. */
   async repondreParEmail(token: string, statut: StatutReponse) {
     const payload = this.verifierTokenReponse(token);
     return this.repondre(payload.alerteId, payload.donneurId, { statut });
   }
 
-  /** Aperçu (lecture seule) de l'alerte visée par un lien de réponse par email, pour la page de confirmation. */
   async apercuReponseEmail(token: string) {
     const payload = this.verifierTokenReponse(token);
     const alerte = await this.repository.alerte.findUnique({
@@ -694,13 +669,6 @@ export class AlertesService {
     };
   }
 
-  /**
-   * Trouve les donneurs éligibles d'un quartier (groupe compatible, actifs) puis les
-   * répartit vers le centre sélectionné le plus proche — chaque donneur n'est notifié
-   * qu'une fois même si plusieurs centres sont choisis. Quand un plafond est fixé, seuls
-   * les donneurs géolocalisés les plus proches de leur centre assigné sont retenus (ceux
-   * sans coordonnées passent en dernier).
-   */
   private async repartirDonneursDuQuartier(
     groupeSanguinRequis: Prisma.AlerteGetPayload<object>['groupeSanguinRequis'],
     quartierId: string,
@@ -784,11 +752,6 @@ export class AlertesService {
     return repartition;
   }
 
-  /**
-   * Exclut les donneurs pas encore éligibles (délai réglementaire de 90 jours depuis leur
-   * dernier don non écoulé) : inutile de les mobiliser pour une alerte s'ils ne peuvent pas
-   * légalement donner.
-   */
   private async filtrerDonneursEligibles<T extends { id: string }>(
     donneurs: T[],
   ): Promise<T[]> {

@@ -40,7 +40,6 @@ export class AnalyticsService {
     return { ok: true };
   }
 
-  /** Marque la session comme explicitement déconnectée, pour un statut hors-ligne immédiat côté front. */
   async signalerDeconnexion(sessionId: string) {
     await this.repository.sessionVisite.updateMany({
       where: { sessionId },
@@ -85,11 +84,6 @@ export class AnalyticsService {
     return sessions;
   }
 
-  /**
-   * Statut « en ligne / vu récemment » (façon WhatsApp) sur les 7 derniers jours. enLigne est
-   * calculé ici (pas côté front) car une déconnexion explicite (deconnecteA) doit basculer le
-   * statut immédiatement, même si derniereActivite reste dans le seuil des 5 dernières minutes.
-   */
   async connectes() {
     const seuil = new Date(Date.now() - FENETRE_VU_RECEMMENT_MS);
     const seuilEnLigne = new Date(Date.now() - SEUIL_EN_LIGNE_MS);

@@ -2,12 +2,6 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
-/**
- * Cache best-effort via Redis, sur le même principe que MailService/PushService : si
- * REDIS_URL n'est pas configuré (ou que Redis est indisponible), get() ne trouve jamais
- * rien et set() est ignoré silencieusement — aucune fonctionnalité ne doit dépendre de
- * la présence de Redis, seulement en bénéficier en performance quand il est disponible.
- */
 @Injectable()
 export class CacheService implements OnModuleDestroy {
   private readonly logger = new Logger(CacheService.name);

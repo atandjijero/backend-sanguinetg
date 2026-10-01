@@ -9,10 +9,6 @@ export interface AlerteEmailData {
   lienConnexion: string;
 }
 
-/**
- * Template HTML inline (tableaux + styles en ligne) pour compatibilité maximale avec les
- * clients email (Outlook notamment ne supporte ni flexbox ni <style> externe fiable).
- */
 export function genererEmailAlerte(data: AlerteEmailData): string {
   const centreInfo = data.centreNom
     ? `<p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#3f3f3f;">📍 Rendez-vous au centre <strong>${data.centreNom}</strong>${data.centreAdresse ? ` — ${data.centreAdresse}` : ''}.</p>`

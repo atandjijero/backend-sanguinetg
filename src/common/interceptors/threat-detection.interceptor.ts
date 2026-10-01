@@ -10,13 +10,6 @@ import type { Request } from 'express';
 import { SecurityAlertsService } from '../../security/security-alerts.service';
 import { ThreatDetectionService } from '../../security/threat-detection.service';
 
-/**
- * Inspecte le corps de chaque requête entrante à la recherche de motifs
- * d'injection SQL / XSS classiques. Prisma paramétrise déjà toutes les requêtes
- * (pas d'injection SQL possible) et React échappe le rendu (pas de XSS au rendu) :
- * cette couche sert à détecter et journaliser les TENTATIVES, pas à combler une
- * faille qui n'existe pas — défense en profondeur + visibilité pour le SUPERADMIN.
- */
 @Injectable()
 export class ThreatDetectionInterceptor implements NestInterceptor {
   constructor(

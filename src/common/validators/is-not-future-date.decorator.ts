@@ -4,7 +4,6 @@ import {
   ValidationOptions,
 } from 'class-validator';
 
-/** Vérifie qu'une date (chaîne ISO) n'est pas dans le futur — ex: un don ne peut pas être daté de demain. */
 export function IsNotFutureDate(validationOptions?: ValidationOptions) {
   return function (object: object, propertyName: string) {
     registerDecorator({

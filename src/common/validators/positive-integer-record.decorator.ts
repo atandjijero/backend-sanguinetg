@@ -4,7 +4,6 @@ import {
   ValidationOptions,
 } from 'class-validator';
 
-/** Vérifie que le champ décoré est un objet dont chaque valeur est un entier >= 1 (ex: quota par quartier). */
 export function IsPositiveIntegerRecord(validationOptions?: ValidationOptions) {
   return function (object: object, propertyName: string) {
     registerDecorator({

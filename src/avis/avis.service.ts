@@ -19,7 +19,6 @@ export class AvisService {
     return this.repository.avisDonneur.findUnique({ where: { donneurId } });
   }
 
-  /** Indicateur H2 (mémoire, tableau 2) : taux de satisfaction des donneurs vis-à-vis de l'information reçue. */
   async statistiques() {
     const avis = await this.repository.avisDonneur.findMany({ select: { note: true } });
     const totalAvis = avis.length;
