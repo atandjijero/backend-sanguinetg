@@ -1,5 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { RepositoryService } from '../repository/repository.service';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.interface';
 import { CreateConseilDto } from './dto/create-conseil.dto';
@@ -11,12 +10,6 @@ export class ConseilsService {
   constructor(private readonly repository: RepositoryService) {}
 
   create(dto: CreateConseilDto, user: AuthenticatedUser) {
-    if (user.role === Role.SUPERADMIN) {
-      throw new ForbiddenException(
-        "Le SUPERADMIN consulte l'espace conseil santé mais ne publie pas de conseil : action réservée au rôle MEDECIN.",
-      );
-    }
-
     return this.repository.conseilSante.create({
       data: {
         titre: dto.titre,

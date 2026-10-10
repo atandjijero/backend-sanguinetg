@@ -26,7 +26,7 @@ export class AlertesController {
     summary: 'Créer une ou plusieurs alertes (groupes × quartiers) et notifier les donneurs compatibles',
     description:
       'Une alerte est créée par combinaison groupe sanguin × quartier. Retourne le tableau des alertes créées. ' +
-      "Réservé aux rôles opérationnels CNTS : le SUPERADMIN (technicien de la plateforme) n'est pas habilité à lancer d'alerte.",
+      'Accessible aux agents CNTS, aux administrateurs et au SUPERADMIN.',
   })
   create(@Body() dto: CreateAlerteDto, @CurrentUser() user: AuthenticatedUser) {
     return this.alertesService.create(dto, user);
@@ -78,21 +78,21 @@ export class AlertesController {
   @UseGuards(RolesGuard)
   @Roles(Role.AGENT_CNTS, Role.ADMIN)
   @Patch(':id/statut')
-  @ApiOperation({ summary: 'Ouvrir / fermer une alerte (rôles opérationnels CNTS uniquement)' })
-  updateStatut(@Param('id') id: string, @Body() dto: UpdateAlerteStatutDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.alertesService.updateStatut(id, dto, user);
+  @ApiOperation({ summary: 'Ouvrir / fermer une alerte (agents CNTS, administrateurs et SUPERADMIN)' })
+  updateStatut(@Param('id') id: string, @Body() dto: UpdateAlerteStatutDto) {
+    return this.alertesService.updateStatut(id, dto);
   }
 
   @UseGuards(RolesGuard)
   @Roles(Role.AGENT_CNTS, Role.ADMIN)
   @Post(':id/relancer')
   @ApiOperation({
-    summary: 'Relancer une alerte fermée (rôles opérationnels CNTS uniquement)',
+    summary: 'Relancer une alerte fermée (agents CNTS, administrateurs et SUPERADMIN)',
     description:
       "Rouvre l'alerte et renvoie une notification (email + push) aux donneurs déjà ciblés qui n'ont pas encore répondu.",
   })
-  relancer(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.alertesService.relancer(id, user);
+  relancer(@Param('id') id: string) {
+    return this.alertesService.relancer(id);
   }
 
   @UseGuards(RolesGuard)

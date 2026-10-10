@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, Role, TypeRecompense } from '@prisma/client';
 import { RepositoryService } from '../repository/repository.service';
 import { MailService } from '../common/mail/mail.service';
@@ -20,12 +20,6 @@ export class RecompensesService {
   ) {}
 
   async create(dto: CreateRecompenseDto, user: AuthenticatedUser) {
-    if (user.role === Role.SUPERADMIN) {
-      throw new ForbiddenException(
-        "Le SUPERADMIN consulte les récompenses mais ne les attribue pas : action réservée aux rôles opérationnels CNTS.",
-      );
-    }
-
     const recompense = await this.creerRecompense(dto, user);
 
     void this.notifierDonneur(recompense).catch((error: unknown) =>

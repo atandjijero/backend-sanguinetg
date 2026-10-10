@@ -75,12 +75,6 @@ export class AlertesService {
   //répartis vers le centre sélectionné le plus proche (jamais notifiés deux fois).
 
   async create(dto: CreateAlerteDto, user: AuthenticatedUser) {
-    if (user.role === Role.SUPERADMIN) {
-      throw new ForbiddenException(
-        "Le SUPERADMIN administre la plateforme mais ne lance pas d'alerte : cette action est réservée aux rôles opérationnels CNTS (agent, admin).",
-      );
-    }
-
     const centresSelectionnes = await this.repository.centreDon.findMany({
       where: { id: { in: dto.centreDonIds } },
       select: { id: true, latitude: true, longitude: true },
@@ -330,17 +324,7 @@ export class AlertesService {
     return { ...alerte, resume: { jeViens, indisponible } };
   }
 
-  async updateStatut(
-    id: string,
-    dto: UpdateAlerteStatutDto,
-    user: AuthenticatedUser,
-  ) {
-    if (user.role === Role.SUPERADMIN) {
-      throw new ForbiddenException(
-        'Le SUPERADMIN administre la plateforme mais ne gère pas le cycle de vie des alertes (ouverture/fermeture) : action réservée aux rôles opérationnels CNTS.',
-      );
-    }
-
+  async updateStatut(id: string, dto: UpdateAlerteStatutDto) {
     await this.getOrThrow(id);
     return this.repository.alerte.update({
       where: { id },
@@ -368,13 +352,7 @@ export class AlertesService {
     return count;
   }
 
-  async relancer(id: string, user: AuthenticatedUser) {
-    if (user.role === Role.SUPERADMIN) {
-      throw new ForbiddenException(
-        'Le SUPERADMIN administre la plateforme mais ne gère pas le cycle de vie des alertes (relance) : action réservée aux rôles opérationnels CNTS.',
-      );
-    }
-
+  async relancer(id: string) {
     const alerte = await this.repository.alerte.findUnique({
       where: { id },
       include: ALERTE_INCLUDE,

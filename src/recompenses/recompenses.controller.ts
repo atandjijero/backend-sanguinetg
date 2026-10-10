@@ -21,7 +21,7 @@ export class RecompensesController {
   @Post()
   @ApiOperation({
     summary: 'Attribuer une récompense à un donneur (badge, certificat, vivres, transport)',
-    description: "Réservé aux rôles opérationnels CNTS : le SUPERADMIN peut consulter les récompenses mais ne les attribue pas.",
+    description: 'Accessible aux agents CNTS, aux administrateurs et au SUPERADMIN.',
   })
   create(@Body() dto: CreateRecompenseDto, @CurrentUser() user: AuthenticatedUser) {
     return this.recompensesService.create(dto, user);

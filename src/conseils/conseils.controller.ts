@@ -36,7 +36,7 @@ export class ConseilsController {
   @Post()
   @ApiOperation({
     summary: 'Publier un conseil santé validé par un médecin du CNTS',
-    description: "Réservé au rôle MEDECIN : le SUPERADMIN peut consulter l'espace conseil santé mais ne le publie pas.",
+    description: 'Accessible aux médecins et au SUPERADMIN.',
   })
   create(@Body() dto: CreateConseilDto, @CurrentUser() user: AuthenticatedUser) {
     return this.conseilsService.create(dto, user);
