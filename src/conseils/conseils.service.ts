@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { RepositoryService } from '../repository/repository.service';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.interface';
 import { CreateConseilDto } from './dto/create-conseil.dto';
@@ -10,6 +11,7 @@ export class ConseilsService {
   constructor(private readonly repository: RepositoryService) {}
 
   create(dto: CreateConseilDto, user: AuthenticatedUser) {
+    this.interdireSuperadmin(user);
     return this.repository.conseilSante.create({
       data: {
         titre: dto.titre,
@@ -40,7 +42,8 @@ export class ConseilsService {
     return conseil;
   }
 
-  async update(id: string, dto: UpdateConseilDto) {
+  async update(id: string, dto: UpdateConseilDto, user: AuthenticatedUser) {
+    this.interdireSuperadmin(user);
     await this.getOrThrow(id);
     return this.repository.conseilSante.update({
       where: { id },
@@ -49,10 +52,19 @@ export class ConseilsService {
     });
   }
 
-  async remove(id: string) {
+  async remove(id: string, user: AuthenticatedUser) {
+    this.interdireSuperadmin(user);
     await this.getOrThrow(id);
     await this.repository.conseilSante.delete({ where: { id } });
     return { message: 'Conseil santé supprimé' };
+  }
+
+  private interdireSuperadmin(user: AuthenticatedUser) {
+    if (user.role === Role.SUPERADMIN) {
+      throw new ForbiddenException(
+        "Le SUPERADMIN consulte l'espace conseil santé mais ne le gère pas : action réservée au rôle MEDECIN.",
+      );
+    }
   }
 
   private async getOrThrow(id: string) {

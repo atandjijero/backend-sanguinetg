@@ -105,8 +105,8 @@ export class MessagerieService {
     if (auteur.role === Role.DONNEUR) {
       conversation = await this.getOrCreateConversation(auteur.id);
     } else {
-      if (auteur.role !== Role.MEDECIN && auteur.role !== Role.SUPERADMIN) {
-        throw new ForbiddenException('Seuls un médecin et le super administrateur peuvent répondre dans la messagerie.');
+      if (auteur.role !== Role.MEDECIN) {
+        throw new ForbiddenException('Seul un médecin peut répondre dans la messagerie.');
       }
       if (!dto.conversationId) {
         throw new BadRequestException('conversationId requis pour répondre en tant que médecin.');
@@ -140,8 +140,8 @@ export class MessagerieService {
     if (auteur.role === Role.DONNEUR) {
       conversation = await this.getOrCreateConversation(auteur.id);
     } else {
-      if (auteur.role !== Role.MEDECIN && auteur.role !== Role.SUPERADMIN) {
-        throw new ForbiddenException('Seuls un médecin et le super administrateur peuvent répondre dans la messagerie.');
+      if (auteur.role !== Role.MEDECIN) {
+        throw new ForbiddenException('Seul un médecin peut répondre dans la messagerie.');
       }
       if (!conversationId) {
         throw new BadRequestException('conversationId requis pour répondre en tant que médecin.');

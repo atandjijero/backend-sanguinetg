@@ -36,7 +36,7 @@ export class ConseilsController {
   @Post()
   @ApiOperation({
     summary: 'Publier un conseil santé validé par un médecin du CNTS',
-    description: 'Accessible aux médecins et au SUPERADMIN.',
+    description: "Réservé au rôle MEDECIN : le SUPERADMIN peut consulter l'espace conseil santé mais ne le gère pas.",
   })
   create(@Body() dto: CreateConseilDto, @CurrentUser() user: AuthenticatedUser) {
     return this.conseilsService.create(dto, user);
@@ -47,8 +47,8 @@ export class ConseilsController {
   @Roles(Role.MEDECIN, Role.ADMIN)
   @Patch(':id')
   @ApiOperation({ summary: 'Modifier un conseil santé' })
-  update(@Param('id') id: string, @Body() dto: UpdateConseilDto) {
-    return this.conseilsService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateConseilDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.conseilsService.update(id, dto, user);
   }
 
   @ApiBearerAuth()
@@ -56,7 +56,7 @@ export class ConseilsController {
   @Roles(Role.MEDECIN, Role.ADMIN)
   @Delete(':id')
   @ApiOperation({ summary: 'Supprimer un conseil santé' })
-  remove(@Param('id') id: string) {
-    return this.conseilsService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.conseilsService.remove(id, user);
   }
 }
